@@ -1,0 +1,16 @@
+# Dashboard
+streamlit==1.66.1
+pandas==3.1.0
+altair==6.3.0
+matplotlib==3.11.2
+Pillow==13.0.0
+
+# Document processing and OCR
+pymupdf==2.1
+pytesseract==0.3.13
+
+# RAG and vector database
+chromadb==1.5.9
+
+# API communication
+requests==2.34.2

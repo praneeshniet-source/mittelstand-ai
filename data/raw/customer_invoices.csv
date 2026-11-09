@@ -1,0 +1,11 @@
+invoice_id,customer,country,category,invoice_date,due_date,amount_eur,status,payment_date
+CINV001,Alpha Retail GmbH,Germany,Consulting,2026-09-01,2026-09-30,2500,Paid,2026-09-28
+CINV002,Beta Manufacturing AG,Germany,Software,2026-09-05,2026-10-05,4200,Unpaid,
+CINV003,Delta Trading BV,Netherlands,Consulting,2026-09-10,2026-10-10,1800,Paid,2026-10-14
+CINV004,Alpha Retail GmbH,Germany,Software,2026-09-15,2026-10-15,3200,Unpaid,
+CINV005,Gamma Logistics GmbH,Germany,Logistics,2026-09-20,2026-10-20,1500,Paid,2026-10-19
+CINV006,Beta Manufacturing AG,Germany,Software,2026-10-01,2026-10-31,5000,Unpaid,
+CINV007,Delta Trading BV,Netherlands,Consulting,2026-10-04,2026-11-03,2100,Unpaid,
+CINV008,Gamma Logistics GmbH,Germany,Logistics,2026-10-08,2026-11-07,2800,Paid,2026-10-25
+CINV009,Alpha Retail GmbH,Germany,Consulting,2026-10-12,2026-11-11,3600,Unpaid,
+CINV010,Beta Manufacturing AG,Germany,Software,2026-10-15,2026-11-14,1900,Unpaid,

@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Databases and vector stores
+*.db
+data/vector_store/
+
+# Generated files
+.DS_Store
+*.log
+.ipynb_checkpoints/
+
+# Backups
+*_backup.py
+app old.py
+app old copy.py
+app_before_*.py
+app_day*_backup.py
+
+# Generated analytics
+data/processed/
+
+# Local test documents
+sample_invoice.pdf
+german_invoice.pdf
+scanned_invoice.pdf
+scanned_invoice.png
+
+# Local databases
+*.sqlite
+*.sqlite3
+
+# macOS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# ChromaDB
+data/vector_store/
+
+# Generated charts
+data/processed/
+
+# Backup scripts
+*_backup.py

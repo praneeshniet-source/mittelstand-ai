@@ -1,0 +1,12 @@
+
+invoice_id,supplier,country,category,invoice_date,due_date,amount_eur,status
+INV001,Berlin Components GmbH,Germany,Materials,2026-09-01,2026-09-30,1200,Unpaid
+INV002,Munich Tools AG,Germany,Equipment,2026-09-03,2026-10-03,2400,Paid
+INV003,Rotterdam Parts BV,Netherlands,Materials,2026-09-05,2026-10-05,800,Unpaid
+INV004,Berlin Components GmbH,Germany,Materials,2026-09-12,2026-10-12,1500,Paid
+INV005,Hamburg Logistics GmbH,Germany,Logistics,2026-09-15,2026-10-15,600,Unpaid
+INV006,Munich Tools AG,Germany,Equipment,2026-10-01,2026-10-31,3200,Unpaid
+INV007,Rotterdam Parts BV,Netherlands,Materials,2026-10-04,2026-11-03,1100,Unpaid
+INV008,Hamburg Logistics GmbH,Germany,Logistics,2026-10-07,2026-11-06,900,Paid
+INV009,Berlin Components GmbH,Germany,Materials,2026-10-10,2026-11-09,1800,Unpaid
+INV010,Munich Tools AG,Germany,Equipment,2026-10-12,2026-11-11,2600,Paid
