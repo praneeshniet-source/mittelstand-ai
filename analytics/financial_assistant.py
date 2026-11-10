@@ -156,20 +156,26 @@ def _format_supplier_answer(metrics, question):
 
 
 
+
 def _answer_portfolio_question(question, metrics):
     """Answer common portfolio questions with calculated values."""
     q = question.casefold()
 
+    # 1. Highest unpaid supplier
     if any(term in q for term in (
-        "highest unpaid", "largest unpaid", "most unpaid"
+        "highest unpaid",
+        "largest unpaid",
+        "most unpaid",
     )):
         with sqlite3.connect(DATABASE_PATH) as conn:
             row = conn.execute(
                 """
                 SELECT TRIM(supplier) AS supplier,
-                       SUM(CASE WHEN LOWER(TRIM(status)) = 'unpaid'
-                                THEN amount_eur ELSE 0 END) AS unpaid
+                       SUM(amount_eur) AS unpaid
                 FROM invoices
+                WHERE LOWER(TRIM(status)) = 'unpaid'
+                  AND supplier IS NOT NULL
+                  AND TRIM(supplier) <> ''
                 GROUP BY TRIM(supplier)
                 ORDER BY unpaid DESC
                 LIMIT 1
@@ -178,16 +184,16 @@ def _answer_portfolio_question(question, metrics):
 
         if row and row[0] is not None:
             return (
-                f"{row[0]} has the highest unpaid supplier exposure at "
-                f"€{float(row[1]):,.2f}."
+                f"{row[0]} has the highest unpaid supplier exposure "
+                f"at €{float(row[1]):,.2f}."
             )
 
-    # IMPORTANT: Check negative overdue phrases first.
+    # 2. Unpaid invoices that are not yet due
     if any(term in q for term in (
         "not yet due",
         "not overdue",
         "unpaid but not overdue",
-        "unpaid but not yet due"
+        "unpaid but not yet due",
     )):
         return (
             f"Unpaid supplier invoices that are not yet due total "
@@ -195,6 +201,36 @@ def _answer_portfolio_question(question, metrics):
             f"{metrics['not_due_invoice_count']} invoice(s)."
         )
 
+    # 3. Highest overdue supplier
+    if any(term in q for term in (
+        "highest overdue",
+        "largest overdue",
+        "most overdue",
+    )):
+        with sqlite3.connect(DATABASE_PATH) as conn:
+            row = conn.execute(
+                """
+                SELECT TRIM(supplier) AS supplier,
+                       SUM(amount_eur) AS overdue
+                FROM invoices
+                WHERE LOWER(TRIM(status)) = 'unpaid'
+                  AND date(due_date) < date(?)
+                  AND supplier IS NOT NULL
+                  AND TRIM(supplier) <> ''
+                GROUP BY TRIM(supplier)
+                ORDER BY overdue DESC
+                LIMIT 1
+                """,
+                (DEFAULT_REPORTING_DATE.strftime("%Y-%m-%d"),),
+            ).fetchone()
+
+        if row and row[0] is not None:
+            return (
+                f"{row[0]} has the highest overdue supplier exposure "
+                f"at €{float(row[1]):,.2f}."
+            )
+
+    # 4. Total overdue supplier exposure
     if "overdue" in q:
         return (
             f"Total overdue supplier exposure is "
@@ -202,19 +238,25 @@ def _answer_portfolio_question(question, metrics):
             f"{metrics['overdue_invoice_count']} invoice(s)."
         )
 
+    # 5. Total unpaid supplier exposure
     if "unpaid" in q or "outstanding" in q:
         return (
-            f"Total unpaid supplier exposure is €{metrics['unpaid']:,.2f}."
+            f"Total unpaid supplier exposure is "
+            f"€{metrics['unpaid']:,.2f}."
         )
 
+    # 6. Total paid supplier invoice value
     if "paid" in q:
         return (
-            f"Total paid supplier invoice value is €{metrics['paid']:,.2f}."
+            f"Total paid supplier invoice value is "
+            f"€{metrics['paid']:,.2f}."
         )
 
+    # 7. Total invoice value
     if "total" in q and "invoice" in q:
         return (
-            f"Total supplier invoice value is €{metrics['total_value']:,.2f} "
+            f"Total supplier invoice value is "
+            f"€{metrics['total_value']:,.2f} "
             f"across {metrics['invoice_count']} invoices."
         )
 

@@ -73,8 +73,19 @@ def ingest_pdf(pdf_path):
             "chunk_index": index
         })
 
-    # Step 4: Store in ChromaDB
-    collection.upsert(
+        # Step 4: Remove old chunks for this document
+
+    existing_records = collection.get(
+        where={"source_path": str(pdf_path)},
+        include=["metadatas"]
+    )
+
+    if existing_records["ids"]:
+        collection.delete(ids=existing_records["ids"])
+
+    # Step 5: Store updated document chunks
+
+    collection.add(
         ids=ids,
         documents=chunks,
         embeddings=embeddings,
@@ -151,9 +162,31 @@ def search_documents(question, top_k=3):
         candidate["keyword_matches"] = len(matched_terms)
         candidate["matched_terms"] = matched_terms
 
-    # Step 3: Hybrid ranking
+        # Step 3: Identifier-aware hybrid ranking
+
+    import re
+
+    identifier_pattern = r"\b[A-Z]{2,5}-\d{3,4}(?:-\d{3,4})?\b"
+
+    question_identifiers = {
+        identifier.upper()
+        for identifier in re.findall(
+            identifier_pattern,
+            question.upper()
+        )
+    }
+
+    for candidate in candidates:
+        document_text = candidate["document"].upper()
+
+        candidate["identifier_match"] = any(
+            identifier in document_text
+            for identifier in question_identifiers
+        )
+
     candidates.sort(
         key=lambda item: (
+            -int(item["identifier_match"]),
             -item["keyword_matches"],
             item["distance"]
         )
