@@ -55,3 +55,6 @@ data/processed/
 
 # Backup scripts
 *_backup.py
+
+# Uploaded documents (keep private)
+data/uploads/
