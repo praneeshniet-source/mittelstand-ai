@@ -1,65 +1,72 @@
-import sqlite3
-from pathlib import Path
 
 import pandas as pd
+import psycopg
 
+from analytics.database import fetch_dataframe
 from analytics.ollama_client import ask_ollama
 from analytics.financial_context import get_financial_context
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATABASE_PATH = PROJECT_ROOT / "mittelstand.db"
+
 DEFAULT_REPORTING_DATE = pd.Timestamp("2026-10-27")
 
 
 def get_supplier_names():
-    """Return supplier names currently present in the SQLite invoice table."""
-    if not DATABASE_PATH.exists():
-        return []
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        rows = conn.execute(
-            """
-            SELECT DISTINCT TRIM(supplier)
-            FROM invoices
-            WHERE supplier IS NOT NULL AND TRIM(supplier) <> ''
-            ORDER BY TRIM(supplier)
-            """
-        ).fetchall()
-    return [row[0] for row in rows]
+    """Return supplier names currently present in PostgreSQL."""
+
+    data = fetch_dataframe(
+        """
+        SELECT DISTINCT TRIM(supplier) AS supplier
+        FROM invoices
+        WHERE supplier IS NOT NULL AND TRIM(supplier) <> ''
+        ORDER BY TRIM(supplier)
+        """
+    )
+
+    return data["supplier"].tolist()
 
 
 def find_supplier_in_question(question):
     """Match a supplier mentioned in the question to a database supplier."""
+
     q = question.casefold()
-    matches = [name for name in get_supplier_names() if name.casefold() in q]
+    matches = [
+        name for name in get_supplier_names()
+        if name.casefold() in q
+    ]
+
     return max(matches, key=len) if matches else None
 
 
 def get_supplier_metrics(supplier, reporting_date=DEFAULT_REPORTING_DATE):
-    """Calculate verified unpaid, overdue and not-yet-due supplier balances."""
-    if not DATABASE_PATH.exists():
-        raise FileNotFoundError(f"Database not found: {DATABASE_PATH}")
+    """Calculate verified supplier balances from PostgreSQL."""
 
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        data = pd.read_sql_query(
-            """
-            SELECT invoice_id, supplier, due_date, amount_eur, status
-            FROM invoices
-            WHERE TRIM(supplier) = TRIM(?)
-            """,
-            conn,
-            params=(supplier,),
-        )
+    data = fetch_dataframe(
+        """
+        SELECT invoice_id, supplier, due_date, amount_eur, status
+        FROM invoices
+        WHERE TRIM(supplier) = TRIM(%s)
+        """,
+        (supplier,),
+    )
 
     if data.empty:
         return None
 
-    data["amount_eur"] = pd.to_numeric(data["amount_eur"], errors="coerce")
-    data["due_date"] = pd.to_datetime(data["due_date"], errors="coerce")
-    data["status"] = data["status"].astype(str).str.strip().str.title()
+    data["amount_eur"] = pd.to_numeric(
+        data["amount_eur"], errors="coerce"
+    )
+    data["due_date"] = pd.to_datetime(
+        data["due_date"], errors="coerce"
+    )
+    data["status"] = (
+        data["status"].astype(str).str.strip().str.title()
+    )
+
     data = data.dropna(subset=["amount_eur", "due_date"])
 
     unpaid = data[data["status"] == "Unpaid"]
     report_date = pd.Timestamp(reporting_date).normalize()
+
     overdue = unpaid[unpaid["due_date"] < report_date]
     not_yet_due = unpaid[unpaid["due_date"] >= report_date]
 
@@ -76,32 +83,39 @@ def get_supplier_metrics(supplier, reporting_date=DEFAULT_REPORTING_DATE):
 
 
 def get_portfolio_metrics(reporting_date=DEFAULT_REPORTING_DATE):
-    """Calculate portfolio totals directly from the supplier invoice database."""
-    if not DATABASE_PATH.exists():
-        raise FileNotFoundError(f"Database not found: {DATABASE_PATH}")
+    """Calculate supplier portfolio totals from PostgreSQL."""
 
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        data = pd.read_sql_query(
-            "SELECT amount_eur, due_date, status FROM invoices", conn
-        )
+    data = fetch_dataframe(
+        "SELECT amount_eur, due_date, status FROM invoices"
+    )
 
     if data.empty:
         return None
 
-    data["amount_eur"] = pd.to_numeric(data["amount_eur"], errors="coerce")
-    data["due_date"] = pd.to_datetime(data["due_date"], errors="coerce")
-    data["status"] = data["status"].astype(str).str.strip().str.title()
+    data["amount_eur"] = pd.to_numeric(
+        data["amount_eur"], errors="coerce"
+    )
+    data["due_date"] = pd.to_datetime(
+        data["due_date"], errors="coerce"
+    )
+    data["status"] = (
+        data["status"].astype(str).str.strip().str.title()
+    )
+
     data = data.dropna(subset=["amount_eur", "due_date"])
 
     unpaid = data[data["status"] == "Unpaid"]
     report_date = pd.Timestamp(reporting_date).normalize()
+
     overdue = unpaid[unpaid["due_date"] < report_date]
     not_yet_due = unpaid[unpaid["due_date"] >= report_date]
 
     return {
         "invoice_count": int(len(data)),
         "total_value": float(data["amount_eur"].sum()),
-        "paid": float(data.loc[data["status"] == "Paid", "amount_eur"].sum()),
+        "paid": float(
+            data.loc[data["status"] == "Paid", "amount_eur"].sum()
+        ),
         "unpaid": float(unpaid["amount_eur"].sum()),
         "overdue": float(overdue["amount_eur"].sum()),
         "not_due": float(not_yet_due["amount_eur"].sum()),
@@ -112,6 +126,7 @@ def get_portfolio_metrics(reporting_date=DEFAULT_REPORTING_DATE):
 
 def _format_supplier_answer(metrics, question):
     """Format common supplier questions from verified calculated metrics."""
+
     q = question.casefold()
     name = metrics["supplier"]
 
@@ -126,12 +141,13 @@ def _format_supplier_answer(metrics, question):
                 f"{name} has no overdue supplier balance as of "
                 f"{metrics['reporting_date']}. "
             )
+
         return (
             opening
             + f"Total unpaid exposure is €{metrics['unpaid']:,.2f}, of which "
             + f"€{metrics['not_due']:,.2f} is not yet due. "
             + "Review the underlying invoices and payment schedule before "
-              "taking action."
+            "taking action."
         )
 
     if "overdue" in q:
@@ -141,7 +157,9 @@ def _format_supplier_answer(metrics, question):
             f"as of {metrics['reporting_date']}."
         )
 
-    if any(term in q for term in ("not yet due", "not overdue", "upcoming", "due later")):
+    if any(term in q for term in (
+        "not yet due", "not overdue", "upcoming", "due later"
+    )):
         return (
             f"{name} has €{metrics['not_due']:,.2f} in unpaid invoices that "
             f"are not yet due, as of {metrics['reporting_date']}."
@@ -155,10 +173,9 @@ def _format_supplier_answer(metrics, question):
     )
 
 
-
-
 def _answer_portfolio_question(question, metrics):
     """Answer common portfolio questions with calculated values."""
+
     q = question.casefold()
 
     # 1. Highest unpaid supplier
@@ -167,25 +184,24 @@ def _answer_portfolio_question(question, metrics):
         "largest unpaid",
         "most unpaid",
     )):
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            row = conn.execute(
-                """
-                SELECT TRIM(supplier) AS supplier,
-                       SUM(amount_eur) AS unpaid
-                FROM invoices
-                WHERE LOWER(TRIM(status)) = 'unpaid'
-                  AND supplier IS NOT NULL
-                  AND TRIM(supplier) <> ''
-                GROUP BY TRIM(supplier)
-                ORDER BY unpaid DESC
-                LIMIT 1
-                """
-            ).fetchone()
+        data = fetch_dataframe(
+            """
+            SELECT TRIM(supplier) AS supplier,
+                   SUM(amount_eur) AS unpaid
+            FROM invoices
+            WHERE LOWER(TRIM(status)) = 'unpaid'
+              AND supplier IS NOT NULL
+              AND TRIM(supplier) <> ''
+            GROUP BY TRIM(supplier)
+            ORDER BY unpaid DESC
+            LIMIT 1
+            """
+        )
 
-        if row and row[0] is not None:
+        if not data.empty:
             return (
-                f"{row[0]} has the highest unpaid supplier exposure "
-                f"at €{float(row[1]):,.2f}."
+                f"{data.iloc[0]['supplier']} has the highest unpaid supplier "
+                f"exposure at €{float(data.iloc[0]['unpaid']):,.2f}."
             )
 
     # 2. Unpaid invoices that are not yet due
@@ -207,27 +223,26 @@ def _answer_portfolio_question(question, metrics):
         "largest overdue",
         "most overdue",
     )):
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            row = conn.execute(
-                """
-                SELECT TRIM(supplier) AS supplier,
-                       SUM(amount_eur) AS overdue
-                FROM invoices
-                WHERE LOWER(TRIM(status)) = 'unpaid'
-                  AND date(due_date) < date(?)
-                  AND supplier IS NOT NULL
-                  AND TRIM(supplier) <> ''
-                GROUP BY TRIM(supplier)
-                ORDER BY overdue DESC
-                LIMIT 1
-                """,
-                (DEFAULT_REPORTING_DATE.strftime("%Y-%m-%d"),),
-            ).fetchone()
+        data = fetch_dataframe(
+            """
+            SELECT TRIM(supplier) AS supplier,
+                   SUM(amount_eur) AS overdue
+            FROM invoices
+            WHERE LOWER(TRIM(status)) = 'unpaid'
+              AND due_date < %s
+              AND supplier IS NOT NULL
+              AND TRIM(supplier) <> ''
+            GROUP BY TRIM(supplier)
+            ORDER BY overdue DESC
+            LIMIT 1
+            """,
+            (DEFAULT_REPORTING_DATE.date(),),
+        )
 
-        if row and row[0] is not None:
+        if not data.empty:
             return (
-                f"{row[0]} has the highest overdue supplier exposure "
-                f"at €{float(row[1]):,.2f}."
+                f"{data.iloc[0]['supplier']} has the highest overdue supplier "
+                f"exposure at €{float(data.iloc[0]['overdue']):,.2f}."
             )
 
     # 4. Total overdue supplier exposure
@@ -264,62 +279,105 @@ def _answer_portfolio_question(question, metrics):
 
 
 def get_customer_names():
-    """Return customer names currently present in the customer invoice CSV."""
-    customer_path = PROJECT_ROOT / "data" / "raw" / "customer_invoices.csv"
-    if not customer_path.exists():
-        return []
-    data = pd.read_csv(customer_path, usecols=["customer"])
-    return sorted(
-        data["customer"].dropna().astype(str).str.strip().unique().tolist()
+    """Return customer names currently present in PostgreSQL."""
+
+    data = fetch_dataframe(
+        """
+        SELECT DISTINCT TRIM(customer) AS customer
+        FROM customer_invoices
+        WHERE customer IS NOT NULL AND TRIM(customer) <> ''
+        ORDER BY TRIM(customer)
+        """
     )
+
+    return data["customer"].tolist()
 
 
 def find_customer_in_question(question):
-    """Match a customer mentioned in the question to the CSV dataset."""
+    """Match a customer mentioned in the question to PostgreSQL data."""
+
     q = question.casefold()
-    matches = [name for name in get_customer_names() if name.casefold() in q]
+
+    matches = [
+        name for name in get_customer_names()
+        if name.casefold() in q
+    ]
+
     return max(matches, key=len) if matches else None
 
 
 def get_customer_metrics(customer=None, reporting_date=DEFAULT_REPORTING_DATE):
-    """Calculate verified customer receivables from customer_invoices.csv."""
-    customer_path = PROJECT_ROOT / "data" / "raw" / "customer_invoices.csv"
-    if not customer_path.exists():
-        raise FileNotFoundError(
-            f"Customer invoice file not found: {customer_path}"
-        )
+    """Calculate verified customer receivables from PostgreSQL."""
 
-    data = pd.read_csv(customer_path)
+    data = fetch_dataframe(
+        """
+        SELECT
+            invoice_id,
+            customer,
+            due_date,
+            amount_eur,
+            status,
+            payment_date
+        FROM customer_invoices
+        """
+    )
+
+    if data.empty:
+        return None
+
     required = {
-        "invoice_id", "customer", "due_date", "amount_eur", "status",
-        "payment_date"
+        "invoice_id",
+        "customer",
+        "due_date",
+        "amount_eur",
+        "status",
+        "payment_date",
     }
+
     missing = required.difference(data.columns)
+
     if missing:
         raise ValueError(
-            f"Customer invoice file is missing required columns: {sorted(missing)}"
+            f"Customer invoice table is missing required columns: {sorted(missing)}"
         )
 
     data["customer"] = data["customer"].astype(str).str.strip()
-    data["status"] = data["status"].astype(str).str.strip().str.title()
-    data["amount_eur"] = pd.to_numeric(data["amount_eur"], errors="coerce")
-    data["due_date"] = pd.to_datetime(data["due_date"], errors="coerce")
-    data["payment_date"] = pd.to_datetime(data["payment_date"], errors="coerce")
-    data = data.dropna(subset=["customer", "amount_eur", "due_date"])
+    data["status"] = (
+        data["status"].astype(str).str.strip().str.title()
+    )
+    data["amount_eur"] = pd.to_numeric(
+        data["amount_eur"], errors="coerce"
+    )
+    data["due_date"] = pd.to_datetime(
+        data["due_date"], errors="coerce"
+    )
+    data["payment_date"] = pd.to_datetime(
+        data["payment_date"], errors="coerce"
+    )
+
+    data = data.dropna(
+        subset=["customer", "amount_eur", "due_date"]
+    )
 
     if customer is not None:
-        data = data[data["customer"].str.casefold() == customer.casefold()]
+        data = data[
+            data["customer"].str.casefold() == customer.casefold()
+        ]
 
     if data.empty:
         return None
 
     report_date = pd.Timestamp(reporting_date).normalize()
+
     unpaid = data[data["status"] == "Unpaid"]
     paid = data[data["status"] == "Paid"]
+
     overdue = unpaid[unpaid["due_date"] < report_date]
     not_yet_due = unpaid[unpaid["due_date"] >= report_date]
 
-    delay_days = (paid["payment_date"] - paid["due_date"]).dt.days.dropna()
+    delay_days = (
+        paid["payment_date"] - paid["due_date"]
+    ).dt.days.dropna()
 
     return {
         "customer": customer,
@@ -341,6 +399,7 @@ def get_customer_metrics(customer=None, reporting_date=DEFAULT_REPORTING_DATE):
 
 def _format_customer_answer(metrics, question):
     """Format common customer questions using verified receivables metrics."""
+
     q = question.casefold()
     name = metrics["customer"]
 
@@ -375,36 +434,53 @@ def _format_customer_answer(metrics, question):
 
 def _answer_customer_portfolio_question(question):
     """Answer portfolio-level customer receivables questions."""
+
     q = question.casefold()
 
-    # Avoid intercepting generic supplier questions such as "unpaid but not overdue".
     customer_intent = any(term in q for term in (
-        "customer", "receivable", "collected", "amount collected",
-        "owe us", "owed to us", "customer invoice", "customers"
+        "customer",
+        "receivable",
+        "collected",
+        "amount collected",
+        "owe us",
+        "owed to us",
+        "customer invoice",
+        "customers",
     ))
+
     if not customer_intent:
         return None
 
     metrics = get_customer_metrics()
+
     if metrics is None:
         return "No customer invoice records were found."
 
+    # Highest outstanding customer
     if any(term in q for term in (
-        "highest outstanding", "largest outstanding", "owes us the most",
-        "highest receivable", "largest receivable"
+        "highest outstanding",
+        "largest outstanding",
+        "owes us the most",
+        "highest receivable",
+        "largest receivable",
     )):
-        customer_path = PROJECT_ROOT / "data" / "raw" / "customer_invoices.csv"
-        data = pd.read_csv(customer_path)
-        data["amount_eur"] = pd.to_numeric(data["amount_eur"], errors="coerce")
-        data["status"] = data["status"].astype(str).str.strip().str.title()
-        unpaid = data[data["status"] == "Unpaid"]
-        exposure = unpaid.groupby("customer")["amount_eur"].sum().sort_values(
-            ascending=False
+        data = fetch_dataframe(
+            """
+            SELECT TRIM(customer) AS customer,
+                   SUM(amount_eur) AS outstanding
+            FROM customer_invoices
+            WHERE LOWER(TRIM(status)) = 'unpaid'
+              AND customer IS NOT NULL
+              AND TRIM(customer) <> ''
+            GROUP BY TRIM(customer)
+            ORDER BY outstanding DESC
+            """
         )
-        if not exposure.empty:
+
+        if not data.empty:
             return (
-                f"{exposure.index[0]} has the highest outstanding customer "
-                f"receivable at €{exposure.iloc[0]:,.2f}."
+                f"{data.iloc[0]['customer']} has the highest outstanding customer "
+                f"receivable at €{float(data.iloc[0]['outstanding']):,.2f}."
             )
 
     if any(term in q for term in ("overdue", "past due", "late payment")):
@@ -423,13 +499,17 @@ def _answer_customer_portfolio_question(question):
             f"invoice(s)."
         )
 
-    if any(term in q for term in ("collected", "received", "amount collected")):
+    if any(term in q for term in (
+        "collected", "received", "amount collected"
+    )):
         return (
             f"Our business has collected €{metrics['collected']:,.2f} "
             f"from customers."
         )
 
-    if any(term in q for term in ("outstanding", "receivable", "owe us", "owed to us")):
+    if any(term in q for term in (
+        "outstanding", "receivable", "owe us", "owed to us"
+    )):
         return (
             f"Total outstanding customer receivables are "
             f"€{metrics['outstanding']:,.2f}."
@@ -437,13 +517,19 @@ def _answer_customer_portfolio_question(question):
 
     if "average payment delay" in q or "payment delay" in q:
         delay = metrics["average_payment_delay_days"]
+
         if delay is None:
-            return "There is not enough paid-invoice payment-date data to calculate an average delay."
+            return (
+                "There is not enough paid-invoice payment-date data "
+                "to calculate an average delay."
+            )
+
         if delay < 0:
             return (
                 f"Customers paid an average of {abs(delay):.1f} days before "
                 "the due date."
             )
+
         return f"Customers paid an average of {delay:.1f} days after the due date."
 
     if "customer invoice" in q or "total invoiced" in q:
@@ -456,47 +542,65 @@ def _answer_customer_portfolio_question(question):
 
 
 def ask_financial_assistant(question):
-    """Answer supplier-finance questions using calculations before the LLM."""
+    """Answer financial questions using calculations before the LLM."""
+
     if not question or not question.strip():
         return "Please enter a financial question."
 
     try:
         customer = find_customer_in_question(question)
+
         if customer:
             customer_metrics = get_customer_metrics(customer)
+
             if customer_metrics is not None:
-                return _format_customer_answer(customer_metrics, question)
+                return _format_customer_answer(
+                    customer_metrics, question
+                )
 
         customer_answer = _answer_customer_portfolio_question(question)
+
         if customer_answer:
             return customer_answer
 
         supplier = find_supplier_in_question(question)
+
         if supplier:
             supplier_metrics = get_supplier_metrics(supplier)
+
             if supplier_metrics is not None:
-                return _format_supplier_answer(supplier_metrics, question)
+                return _format_supplier_answer(
+                    supplier_metrics, question
+                )
 
         portfolio_metrics = get_portfolio_metrics()
+
         if portfolio_metrics is None:
             return "No supplier invoice records were found in the database."
 
-        portfolio_answer = _answer_portfolio_question(question, portfolio_metrics)
+        portfolio_answer = _answer_portfolio_question(
+            question, portfolio_metrics
+        )
+
         if portfolio_answer:
             return portfolio_answer
 
         context = get_financial_context(
             reporting_date=DEFAULT_REPORTING_DATE.strftime("%Y-%m-%d")
         )
+
         prompt = f"""
 You are Mittelstand AI, a financial assistant for a German SME.
 
 BUSINESS PERSPECTIVE:
+
 The database contains invoices OUR BUSINESS received from suppliers.
+
 OUR BUSINESS owes money to suppliers. An overdue invoice means OUR BUSINESS
 has not paid the supplier by its due date.
 
 INSTRUCTIONS:
+
 - Use only the supplied financial context.
 - Do not invent amounts, suppliers, invoice details or reasons for delays.
 - Do not calculate financial totals if the context does not provide the values.
@@ -505,19 +609,25 @@ INSTRUCTIONS:
 - Explain the result in clear, concise professional language.
 
 VERIFIED FINANCIAL CONTEXT:
+
 {context}
 
 USER QUESTION:
+
 {question}
 
 Answer:
 """
+
         answer = ask_ollama(prompt)
+
         if not answer or not answer.strip():
             return "I couldn't generate an answer. Please try rephrasing your question."
+
         return answer.strip()
 
-    except (sqlite3.Error, FileNotFoundError, ValueError) as exc:
+    except (psycopg.Error, FileNotFoundError, ValueError) as exc:
         return f"I couldn't retrieve the financial data: {exc}"
+
     except Exception as exc:
         return f"The financial assistant encountered an unexpected error: {exc}"

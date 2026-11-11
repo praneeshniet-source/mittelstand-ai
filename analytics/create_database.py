@@ -1,23 +1,19 @@
+from analytics.database import fetch_dataframe
 
-import pandas as pd
-import sqlite3
 
-# Load the invoice dataset
-invoices = pd.read_csv("data/raw/invoices.csv")
+def verify_database():
+    supplier_count = fetch_dataframe(
+        "SELECT COUNT(*) AS total FROM invoices"
+    ).iloc[0]["total"]
 
-# Create or open our SQLite database
-connection = sqlite3.connect("mittelstand.db")
+    customer_count = fetch_dataframe(
+        "SELECT COUNT(*) AS total FROM customer_invoices"
+    ).iloc[0]["total"]
 
-# Store the CSV records as a database table
-invoices.to_sql(
-    "invoices",
-    connection,
-    if_exists="replace",
-    index=False
-)
+    print("PostgreSQL database verified successfully!")
+    print(f"Supplier invoices: {supplier_count}")
+    print(f"Customer invoices: {customer_count}")
 
-print("Database created successfully!")
-print(f"Records loaded: {len(invoices)}")
 
-# Close the database connection
-connection.close()
+if __name__ == "__main__":
+    verify_database()

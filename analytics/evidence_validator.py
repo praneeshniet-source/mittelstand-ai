@@ -1,8 +1,8 @@
-
 import re
 
 
 # Recognised invoice fields and their labels in English and German.
+
 FIELD_PATTERNS = {
     "invoice_number": (
         r"\binvoice\s*(?:number|no\.?|na)\b",
@@ -90,9 +90,9 @@ def detect_question_intent(question):
 
     return None
 
+
 def extract_supplier_name(document):
     """Extract supplier name from an invoice document."""
-
     match = re.search(
         r"^\s*(?:Supplier|Vendor|Lieferant)\s*[:#]?\s*(.+)$",
         document,
@@ -103,6 +103,7 @@ def extract_supplier_name(document):
         return match.group(1).strip()
 
     return None
+
 
 def validate_evidence(question, results):
     """
@@ -125,6 +126,7 @@ def validate_evidence(question, results):
         }
 
     # Priority 1: Exact invoice identifier.
+
     identifiers = detect_invoice_identifiers(question)
 
     if identifiers:
@@ -150,6 +152,7 @@ def validate_evidence(question, results):
         }
 
     # Priority 2: Recognised invoice-field questions.
+
     intent = detect_question_intent(question)
 
     if intent is None:
@@ -176,7 +179,8 @@ def validate_evidence(question, results):
             "reason": f"No evidence for the requested field: {intent}.",
         }
 
-       # Match the supplier named in the question.
+    # Match the supplier named in the question.
+
     question_normalised = re.sub(
         r"[^a-z0-9]",
         "",
@@ -198,9 +202,10 @@ def validate_evidence(question, results):
             if supplier_normalised in question_normalised:
                 supplier_matches.append(result)
 
-        # Reject explicitly requested suppliers not found in documents.
+    # Reject explicitly requested suppliers not found in documents.
+
     supplier_reference = re.search(
-        r"\b(?:for|of)\s+(.+?)(?:\?|$)",
+        r"\b(?:from|for|of)\s+(.+?)\s*[?.!]*$",
         question,
         re.IGNORECASE
     )

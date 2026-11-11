@@ -1,13 +1,20 @@
-
 import pandas as pd
 
-# Load customer invoice dataset
-df = pd.read_csv("data/raw/customer_invoices.csv")
+from analytics.database import fetch_dataframe
 
-# Convert date columns
-df["invoice_date"] = pd.to_datetime(df["invoice_date"])
-df["due_date"] = pd.to_datetime(df["due_date"])
-df["payment_date"] = pd.to_datetime(df["payment_date"])
+
+# Load customer invoices from PostgreSQL
+df = fetch_dataframe(
+    "SELECT * FROM customer_invoices ORDER BY invoice_id"
+)
+
+# Convert numeric and date columns
+df["amount_eur"] = pd.to_numeric(
+    df["amount_eur"], errors="coerce"
+)
+
+for column in ["invoice_date", "due_date", "payment_date"]:
+    df[column] = pd.to_datetime(df[column], errors="coerce")
 
 # Reporting date
 reporting_date = pd.Timestamp("2026-10-27")
@@ -39,7 +46,7 @@ customer_exposure = (
     .sort_values(ascending=False)
 )
 
-# Calculate average payment delay for paid invoices
+# Calculate average payment delay
 paid["payment_delay_days"] = (
     paid["payment_date"] - paid["due_date"]
 ).dt.days
@@ -64,16 +71,24 @@ print(f"Overdue amount: €{overdue_amount:,.2f}")
 print("\nCUSTOMER-WISE OUTSTANDING")
 print(customer_exposure)
 
-print(f"\nAverage payment delay: {average_delay:.1f} days")
+if pd.isna(average_delay):
+    print("\nAverage payment delay: Not available")
+else:
+    print(f"\nAverage payment delay: {average_delay:.1f} days")
 
 print("\nOVERDUE INVOICE DETAILS")
+
 if overdue.empty:
     print("No overdue invoices.")
 else:
-    print(overdue[[
-        "invoice_id",
-        "customer",
-        "amount_eur",
-        "due_date",
-        "days_overdue"
-    ]].to_string(index=False))
+    print(
+        overdue[
+            [
+                "invoice_id",
+                "customer",
+                "amount_eur",
+                "due_date",
+                "days_overdue"
+            ]
+        ].to_string(index=False)
+    )

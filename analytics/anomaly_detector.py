@@ -1,17 +1,15 @@
 
-import sqlite3
 import pandas as pd
+
+from analytics.database import fetch_dataframe
 
 
 def detect_anomalies(invoices):
-
     anomalies = []
 
     # Rule 1: Invalid invoice amounts
     for _, invoice in invoices.iterrows():
-
         if invoice["amount_eur"] <= 0:
-
             anomalies.append({
                 "invoice_id": invoice["invoice_id"],
                 "supplier": invoice["supplier"],
@@ -22,7 +20,6 @@ def detect_anomalies(invoices):
 
         # Rule 2: Unusually high invoice amount
         if invoice["amount_eur"] > 5000:
-
             anomalies.append({
                 "invoice_id": invoice["invoice_id"],
                 "supplier": invoice["supplier"],
@@ -41,13 +38,12 @@ def detect_anomalies(invoices):
     )
 
     invalid_dates = (
-        (due_dates < invoice_dates) |
-        invoice_dates.isna() |
-        due_dates.isna()
+        (due_dates < invoice_dates)
+        | invoice_dates.isna()
+        | due_dates.isna()
     )
 
     for index in invoices[invalid_dates].index:
-
         invoice = invoices.loc[index]
 
         anomalies.append({
@@ -61,26 +57,17 @@ def detect_anomalies(invoices):
     return pd.DataFrame(anomalies)
 
 
-# Read invoices from SQLite and run anomaly detection
 def detect_invoice_anomalies():
+    """Retrieve invoices from PostgreSQL and detect anomalies."""
 
-    conn = sqlite3.connect("mittelstand.db")
-
-    try:
-        invoices = pd.read_sql_query(
-            "SELECT * FROM invoices",
-            conn
-        )
-
-    finally:
-        conn.close()
+    invoices = fetch_dataframe(
+        "SELECT * FROM invoices"
+    )
 
     return detect_anomalies(invoices)
 
 
-# Run detector directly
 if __name__ == "__main__":
-
     results = detect_invoice_anomalies()
 
     print("\nINVOICE ANOMALY DETECTION RESULTS")

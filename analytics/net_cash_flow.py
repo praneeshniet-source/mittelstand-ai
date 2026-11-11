@@ -1,35 +1,29 @@
-
-import sqlite3
 import pandas as pd
+
+from analytics.database import fetch_dataframe
+
 
 # Reporting configuration
 REPORTING_DATE = pd.Timestamp("2026-10-27")
-OPENING_CASH = 20000
+OPENING_CASH = 20000.0
 
-# Load customer invoices
-customers = pd.read_csv("data/raw/customer_invoices.csv")
-
-customers["due_date"] = pd.to_datetime(
-    customers["due_date"]
+# Load customer and supplier invoices from PostgreSQL
+customers = fetch_dataframe(
+    "SELECT * FROM customer_invoices ORDER BY invoice_id"
 )
 
-customers["payment_date"] = pd.to_datetime(
-    customers["payment_date"]
+suppliers = fetch_dataframe(
+    "SELECT * FROM invoices ORDER BY invoice_id"
 )
 
-# Load supplier invoices from SQLite
-connection = sqlite3.connect("mittelstand.db")
-
-suppliers = pd.read_sql_query(
-    "SELECT * FROM invoices",
-    connection
-)
-
-connection.close()
-
-suppliers["due_date"] = pd.to_datetime(
-    suppliers["due_date"]
-)
+# Convert numeric and date columns
+for df in [customers, suppliers]:
+    df["amount_eur"] = pd.to_numeric(
+        df["amount_eur"], errors="coerce"
+    )
+    df["due_date"] = pd.to_datetime(
+        df["due_date"], errors="coerce"
+    )
 
 # Calculate expected customer collections
 unpaid_customers = customers[
@@ -44,10 +38,6 @@ unpaid_customers["expected_date"] = unpaid_customers[
 unpaid_suppliers = suppliers[
     suppliers["status"] == "Unpaid"
 ].copy()
-
-unpaid_suppliers["due_date"] = pd.to_datetime(
-    unpaid_suppliers["due_date"]
-)
 
 unpaid_suppliers["expected_date"] = unpaid_suppliers[
     "due_date"
@@ -66,14 +56,12 @@ unpaid_suppliers = unpaid_suppliers[
 
 # Daily incoming collections
 daily_incoming = (
-    unpaid_customers.groupby("expected_date")["amount_eur"]
-    .sum()
+    unpaid_customers.groupby("expected_date")["amount_eur"].sum()
 )
 
 # Daily outgoing supplier payments
 daily_outgoing = (
-    unpaid_suppliers.groupby("expected_date")["amount_eur"]
-    .sum()
+    unpaid_suppliers.groupby("expected_date")["amount_eur"].sum()
 )
 
 # Create daily cash flow table
@@ -84,7 +72,6 @@ dates = pd.date_range(
 )
 
 cash_flow = pd.DataFrame(index=dates)
-
 cash_flow.index.name = "date"
 
 cash_flow["Expected Customer Collections (€)"] = (
@@ -115,7 +102,6 @@ total_outgoing = cash_flow[
 ].sum()
 
 net_cash_flow = total_incoming - total_outgoing
-
 closing_cash = OPENING_CASH + net_cash_flow
 
 # Display results
@@ -129,16 +115,7 @@ print(f"Net cash flow: €{net_cash_flow:,.2f}")
 print(f"Projected closing cash: €{closing_cash:,.2f}")
 
 print("\nDAILY CASH FLOW")
-print(
-    cash_flow[
-        [
-            "Expected Customer Collections (€)",
-            "Expected Supplier Payments (€)",
-            "Net Cash Flow (€)",
-            "Projected Cash Balance (€)"
-        ]
-    ].to_string()
-)
+print(cash_flow.to_string())
 
 # Identify potential cash shortages
 negative_balance = cash_flow[

@@ -1,25 +1,20 @@
-
-import sqlite3
 import pandas as pd
 
+from analytics.database import fetch_dataframe
 
-# STEP 1: Retrieve invoice data
+
+# STEP 1: Retrieve invoice data from PostgreSQL
+
 def get_invoice_data():
+    """Retrieve supplier invoice data from PostgreSQL."""
 
-    conn = sqlite3.connect("mittelstand.db")
-
-    try:
-        invoices = pd.read_sql_query(
-            "SELECT * FROM invoices",
-            conn
-        )
-        return invoices
-
-    finally:
-        conn.close()
+    return fetch_dataframe(
+        "SELECT * FROM invoices ORDER BY invoice_id"
+    )
 
 
 # STEP 2: Calculate supplier financial exposure
+
 def calculate_supplier_exposure(invoices):
 
     unpaid_invoices = invoices[
@@ -40,6 +35,7 @@ def calculate_supplier_exposure(invoices):
 
 
 # STEP 3: Calculate overdue supplier exposure
+
 def calculate_overdue_exposure(invoices):
 
     reporting_date = pd.Timestamp("2026-10-27")
@@ -69,6 +65,7 @@ def calculate_overdue_exposure(invoices):
 
 
 # STEP 4: Calculate supplier risk
+
 def calculate_supplier_risk(invoices):
 
     reporting_date = pd.Timestamp("2026-10-27")
@@ -170,6 +167,7 @@ def calculate_supplier_risk(invoices):
 
 
 # STEP 5: Generate supplier recommendations
+
 def generate_supplier_recommendations(risk_results):
 
     recommendations = []
@@ -232,6 +230,7 @@ def generate_supplier_recommendations(risk_results):
 
 
 # STEP 6: Generate financial executive summary
+
 def generate_financial_summary(invoices, risk_results):
 
     total_invoices = len(invoices)
@@ -313,6 +312,7 @@ def generate_financial_summary(invoices, risk_results):
 
 
 # MAIN PROGRAM
+
 if __name__ == "__main__":
 
     invoices = get_invoice_data()
@@ -326,6 +326,7 @@ if __name__ == "__main__":
     print(invoices.to_string(index=False))
 
     # Supplier financial exposure
+
     print("\nSUPPLIER FINANCIAL EXPOSURE")
     print("---------------------------")
 
@@ -333,6 +334,7 @@ if __name__ == "__main__":
     print(exposure.to_string(index=False))
 
     # Overdue supplier exposure
+
     print("\nOVERDUE SUPPLIER EXPOSURE")
     print("-------------------------")
 
@@ -340,6 +342,7 @@ if __name__ == "__main__":
     print(overdue.to_string(index=False))
 
     # Supplier risk assessment
+
     print("\nSUPPLIER RISK ASSESSMENT")
     print("------------------------")
 
@@ -347,6 +350,7 @@ if __name__ == "__main__":
     print(risk_results.to_string(index=False))
 
     # Supplier recommendations
+
     print("\nSUPPLIER BUSINESS RECOMMENDATIONS")
     print("---------------------------------")
 
@@ -357,6 +361,7 @@ if __name__ == "__main__":
     print(recommendations.to_string(index=False))
 
     # Financial executive summary
+
     generate_financial_summary(
         invoices,
         risk_results

@@ -1,5 +1,7 @@
+
 from pathlib import Path
 import hashlib
+import re
 
 import chromadb
 
@@ -64,7 +66,6 @@ def ingest_pdf(pdf_path):
         vector = get_embedding("search_document: " + chunk)
 
         ids.append(f"{source_hash}_{index}")
-
         embeddings.append(vector)
 
         metadatas.append({
@@ -73,8 +74,7 @@ def ingest_pdf(pdf_path):
             "chunk_index": index
         })
 
-        # Step 4: Remove old chunks for this document
-
+    # Step 4: Remove old chunks for this document
     existing_records = collection.get(
         where={"source_path": str(pdf_path)},
         include=["metadatas"]
@@ -84,7 +84,6 @@ def ingest_pdf(pdf_path):
         collection.delete(ids=existing_records["ids"])
 
     # Step 5: Store updated document chunks
-
     collection.add(
         ids=ids,
         documents=chunks,
@@ -99,9 +98,13 @@ def ingest_pdf(pdf_path):
     }
 
 
+def normalise_text(value):
+    """Normalise text for reliable keyword and supplier matching."""
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
 
 def search_documents(question, top_k=3):
-    """Retrieve document chunks using hybrid semantic and keyword search."""
+    """Retrieve document chunks using supplier-aware hybrid search."""
 
     if not question or not question.strip():
         raise ValueError("Search question cannot be empty.")
@@ -134,7 +137,33 @@ def search_documents(question, top_k=3):
             "distance": results["distances"][0][index]
         })
 
-    # Step 2: Keyword matching
+    # Step 2: Extract the requested supplier name
+    # Prioritise "from" to avoid matching an earlier "of"
+    supplier_reference = re.search(
+        r"\bfrom\s+(.+?)[?.!]*$",
+        question,
+        re.IGNORECASE
+    )
+
+    # Fallback for questions using "for" or "of"
+    if not supplier_reference:
+        supplier_reference = re.search(
+            r"\b(?:for|of)\s+(?:the\s+)?(?:supplier\s+)?(.+?)[?.!]*$",
+            question,
+            re.IGNORECASE
+        )
+
+    requested_supplier = (
+        supplier_reference.group(1).strip()
+        if supplier_reference else None
+    )
+
+    normalised_supplier = (
+        normalise_text(requested_supplier)
+        if requested_supplier else None
+    )
+
+    # Step 3: Keyword matching
     stop_words = {
         "which", "invoice", "belongs", "belong", "to",
         "what", "is", "the", "a", "an", "of", "for",
@@ -162,11 +191,18 @@ def search_documents(question, top_k=3):
         candidate["keyword_matches"] = len(matched_terms)
         candidate["matched_terms"] = matched_terms
 
-        # Step 3: Identifier-aware hybrid ranking
+        # Exact supplier-name matching
+        normalised_document = normalise_text(candidate["document"])
 
-    import re
+        candidate["supplier_match"] = bool(
+            normalised_supplier
+            and normalised_supplier in normalised_document
+        )
 
-    identifier_pattern = r"\b[A-Z]{2,5}-\d{3,4}(?:-\d{3,4})?\b"
+    # Step 4: Invoice identifier matching
+    identifier_pattern = (
+        r"\b[A-Z]{2,5}-\d{3,4}(?:-\d{3,4})?\b"
+    )
 
     question_identifiers = {
         identifier.upper()
@@ -184,9 +220,11 @@ def search_documents(question, top_k=3):
             for identifier in question_identifiers
         )
 
+    # Step 5: Hybrid ranking
     candidates.sort(
         key=lambda item: (
             -int(item["identifier_match"]),
+            -int(item["supplier_match"]),
             -item["keyword_matches"],
             item["distance"]
         )
