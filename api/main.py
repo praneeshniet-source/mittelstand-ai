@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from analytics.financial_assistant import (
+    ask_financial_assistant,
     get_portfolio_metrics,
     get_customer_metrics,
     get_supplier_metrics,
@@ -27,7 +28,7 @@ class QuestionRequest(BaseModel):
     question: str = Field(
         min_length=3,
         max_length=1000,
-        description="Question about the uploaded invoice documents",
+        description="Financial or uploaded-document question",
     )
     top_k: int = Field(
         default=3,
@@ -35,6 +36,40 @@ class QuestionRequest(BaseModel):
         le=10,
         description="Number of document chunks to retrieve",
     )
+
+
+def is_financial_question(question: str) -> bool:
+    """Identify questions requiring financial data or calculations."""
+
+    q = question.casefold()
+
+    financial_terms = (
+        "overdue",
+        "unpaid",
+        "outstanding",
+        "receivable",
+        "receivables",
+        "collected",
+        "cash flow",
+        "cash position",
+        "cash balance",
+        "highest unpaid",
+        "highest overdue",
+        "largest unpaid",
+        "largest overdue",
+        "payment delay",
+        "owe us",
+        "owes us",
+        "owed to us",
+        "supplier exposure",
+        "customer exposure",
+        "total invoiced",
+        "total invoice value",
+        "paid invoice value",
+        "how much does",
+    )
+
+    return any(term in q for term in financial_terms)
 
 
 @app.get("/health")
@@ -86,6 +121,14 @@ def customer_analytics():
 @app.post("/ai/ask")
 def ask_ai(request: QuestionRequest):
     try:
+        if is_financial_question(request.question):
+            answer = ask_financial_assistant(request.question)
+
+            return {
+                "answer": answer,
+                "sources": [],
+            }
+
         return ask_document_question(
             request.question,
             top_k=request.top_k,
