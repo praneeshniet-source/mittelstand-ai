@@ -253,21 +253,34 @@ def _answer_portfolio_question(question, metrics):
             f"{metrics['overdue_invoice_count']} invoice(s)."
         )
 
-    # 5. Total unpaid supplier exposure
+    # 5. Combined total invoice value and unpaid exposure
+    if (
+        "total" in q
+        and "invoice" in q
+        and ("unpaid" in q or "outstanding" in q)
+    ):
+        return (
+            f"Total supplier invoice value is "
+            f"€{metrics['total_value']:,.2f} across "
+            f"{metrics['invoice_count']} invoices. "
+            f"Of this amount, €{metrics['unpaid']:,.2f} remains unpaid."
+        )
+
+    # 6. Total unpaid supplier exposure
     if "unpaid" in q or "outstanding" in q:
         return (
             f"Total unpaid supplier exposure is "
             f"€{metrics['unpaid']:,.2f}."
         )
 
-    # 6. Total paid supplier invoice value
+    # 7. Total paid supplier invoice value
     if "paid" in q:
         return (
             f"Total paid supplier invoice value is "
             f"€{metrics['paid']:,.2f}."
         )
 
-    # 7. Total invoice value
+    # 8. Total invoice value
     if "total" in q and "invoice" in q:
         return (
             f"Total supplier invoice value is "
@@ -294,7 +307,7 @@ def get_customer_names():
 
 
 def find_customer_in_question(question):
-    """Match a customer mentioned in the question to PostgreSQL data."""
+    """Match a customer mentioned in the question to a database customer."""
 
     q = question.casefold()
 

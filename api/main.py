@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from config.settings import settings
@@ -15,14 +16,18 @@ from analytics.financial_assistant import (
     get_customer_metrics,
     get_supplier_metrics,
 )
+
 from analytics.rag_assistant import ask_document_question
 from analytics.rag_pipeline import ingest_pdf
 
 
-# Configure application-wide structured logging.
-configure_logging()
-logger = logging.getLogger("mittelstand_ai.api")
+# ============================================================
+# APPLICATION CONFIGURATION
+# ============================================================
 
+configure_logging()
+
+logger = logging.getLogger("mittelstand_ai.api")
 
 app = FastAPI(
     title=f"{settings.app_name} API",
@@ -31,12 +36,33 @@ app = FastAPI(
 )
 
 
+# ============================================================
+# CORS CONFIGURATION
+# ============================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
+
+# ============================================================
+# REQUEST MODELS
+# ============================================================
+
 class QuestionRequest(BaseModel):
     question: str = Field(
         min_length=3,
         max_length=1000,
         description="Financial or uploaded-document question",
     )
+
     top_k: int = Field(
         default=3,
         ge=1,
@@ -44,6 +70,10 @@ class QuestionRequest(BaseModel):
         description="Number of document chunks to retrieve",
     )
 
+
+# ============================================================
+# FINANCIAL QUESTION ROUTING
+# ============================================================
 
 def is_financial_question(question: str) -> bool:
     """Identify questions requiring financial data or calculations."""
@@ -79,6 +109,10 @@ def is_financial_question(question: str) -> bool:
     return any(term in q for term in financial_terms)
 
 
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
 @app.get("/health")
 def health_check():
     logger.info("Health check requested.")
@@ -88,6 +122,10 @@ def health_check():
         "application": settings.app_name,
     }
 
+
+# ============================================================
+# FINANCIAL ANALYTICS
+# ============================================================
 
 @app.get("/analytics/overview")
 def analytics_overview():
@@ -103,13 +141,16 @@ def analytics_overview():
             )
 
         logger.info("Supplier portfolio analytics retrieved successfully.")
+
         return metrics
 
     except HTTPException:
         raise
 
     except Exception:
-        logger.exception("Failed to retrieve supplier portfolio analytics.")
+        logger.exception(
+            "Failed to retrieve supplier portfolio analytics."
+        )
 
         raise HTTPException(
             status_code=500,
@@ -131,6 +172,7 @@ def customer_analytics():
             )
 
         logger.info("Customer analytics retrieved successfully.")
+
         return metrics
 
     except HTTPException:
@@ -145,6 +187,39 @@ def customer_analytics():
         )
 
 
+@app.get("/analytics/suppliers/{supplier}")
+def supplier_analytics(supplier: str):
+    logger.info("Supplier analytics requested.")
+
+    try:
+        metrics = get_supplier_metrics(supplier)
+
+        if metrics is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No invoice data found for supplier: {supplier}",
+            )
+
+        logger.info("Supplier analytics retrieved successfully.")
+
+        return metrics
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        logger.exception("Failed to retrieve supplier analytics.")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve supplier analytics.",
+        )
+
+
+# ============================================================
+# AI ASSISTANT
+# ============================================================
+
 @app.post("/ai/ask")
 def ask_ai(request: QuestionRequest):
     logger.info("AI question received.")
@@ -155,7 +230,9 @@ def ask_ai(request: QuestionRequest):
 
             answer = ask_financial_assistant(request.question)
 
-            logger.info("Financial assistant completed successfully.")
+            logger.info(
+                "Financial assistant completed successfully."
+            )
 
             return {
                 "answer": answer,
@@ -182,38 +259,17 @@ def ask_ai(request: QuestionRequest):
         )
 
 
-@app.get("/analytics/suppliers/{supplier}")
-def supplier_analytics(supplier: str):
-    logger.info("Supplier analytics requested.")
-
-    try:
-        metrics = get_supplier_metrics(supplier)
-
-        if metrics is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No invoice data found for supplier: {supplier}",
-            )
-
-        logger.info("Supplier analytics retrieved successfully.")
-        return metrics
-
-    except HTTPException:
-        raise
-
-    except Exception:
-        logger.exception("Failed to retrieve supplier analytics.")
-
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to retrieve supplier analytics.",
-        )
-
+# ============================================================
+# PDF DOCUMENT UPLOAD
+# ============================================================
 
 @app.post("/documents/upload")
 async def upload_document(file: UploadFile = File(...)):
+
     if not file.filename:
-        logger.warning("Document upload rejected: missing filename.")
+        logger.warning(
+            "Document upload rejected: missing filename."
+        )
 
         raise HTTPException(
             status_code=400,
@@ -221,7 +277,9 @@ async def upload_document(file: UploadFile = File(...)):
         )
 
     if not file.filename.lower().endswith(".pdf"):
-        logger.warning("Document upload rejected: unsupported file type.")
+        logger.warning(
+            "Document upload rejected: unsupported file type."
+        )
 
         raise HTTPException(
             status_code=400,
@@ -233,24 +291,36 @@ async def upload_document(file: UploadFile = File(...)):
 
     # Generate a unique filename to prevent overwriting existing files.
     original_name = Path(file.filename).name
-    unique_name = f"{Path(original_name).stem}_{uuid4().hex[:8]}.pdf"
+
+    unique_name = (
+        f"{Path(original_name).stem}_{uuid4().hex[:8]}.pdf"
+    )
+
     file_path = upload_dir / unique_name
 
     try:
-        content = await file.read(settings.max_upload_size + 1)
+        content = await file.read(
+            settings.max_upload_size + 1
+        )
 
         if len(content) > settings.max_upload_size:
             limit_mb = settings.max_upload_size / (1024 * 1024)
 
-            logger.warning("Document upload rejected: file exceeds size limit.")
+            logger.warning(
+                "Document upload rejected: file exceeds size limit."
+            )
 
             raise HTTPException(
                 status_code=413,
-                detail=f"File size exceeds the {limit_mb:g} MB upload limit.",
+                detail=(
+                    f"File size exceeds the {limit_mb:g} MB upload limit."
+                ),
             )
 
         if not content:
-            logger.warning("Document upload rejected: empty file.")
+            logger.warning(
+                "Document upload rejected: empty file."
+            )
 
             raise HTTPException(
                 status_code=400,
@@ -258,7 +328,9 @@ async def upload_document(file: UploadFile = File(...)):
             )
 
         if not content.startswith(b"%PDF-"):
-            logger.warning("Document upload rejected: invalid PDF signature.")
+            logger.warning(
+                "Document upload rejected: invalid PDF signature."
+            )
 
             raise HTTPException(
                 status_code=400,
@@ -267,7 +339,9 @@ async def upload_document(file: UploadFile = File(...)):
 
         file_path.write_bytes(content)
 
-        logger.info("PDF saved. Starting document ingestion.")
+        logger.info(
+            "PDF saved. Starting document ingestion."
+        )
 
         result = ingest_pdf(file_path)
 
@@ -285,10 +359,11 @@ async def upload_document(file: UploadFile = File(...)):
         raise
 
     except ValueError:
-        # Remove the saved file if document validation or ingestion fails.
         file_path.unlink(missing_ok=True)
 
-        logger.exception("Document ingestion failed due to invalid content.")
+        logger.exception(
+            "Document ingestion failed due to invalid content."
+        )
 
         raise HTTPException(
             status_code=400,
@@ -296,10 +371,11 @@ async def upload_document(file: UploadFile = File(...)):
         )
 
     except Exception:
-        # Remove incomplete uploads after unexpected failures.
         file_path.unlink(missing_ok=True)
 
-        logger.exception("Unexpected document upload failure.")
+        logger.exception(
+            "Unexpected document upload failure."
+        )
 
         raise HTTPException(
             status_code=500,
