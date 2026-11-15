@@ -1,7 +1,14 @@
+
 import requests
 
-OLLAMA_EMBED_URL = "http://localhost:11434/api/embed"
-EMBEDDING_MODEL = "nomic-embed-text"
+from config.settings import settings
+
+
+OLLAMA_EMBED_URL = (
+    f"{settings.ollama_base_url.rstrip('/')}/api/embed"
+)
+
+EMBEDDING_MODEL = settings.embedding_model
 
 
 def get_embedding(text):
@@ -18,7 +25,7 @@ def get_embedding(text):
     response = requests.post(
         OLLAMA_EMBED_URL,
         json=payload,
-        timeout=180
+        timeout=settings.ollama_timeout
     )
 
     response.raise_for_status()
@@ -26,9 +33,10 @@ def get_embedding(text):
     result = response.json()
     embedding = result["embeddings"][0]
 
-    if len(embedding) != 768:
+    if len(embedding) != settings.embedding_dimensions:
         raise ValueError(
-            f"Expected 768 dimensions, received {len(embedding)}."
+            f"Expected {settings.embedding_dimensions} dimensions, "
+            f"received {len(embedding)}."
         )
 
     return embedding

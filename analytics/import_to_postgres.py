@@ -1,8 +1,13 @@
+
 import csv
+import logging
 from pathlib import Path
 
 from analytics.database import get_connection
+from config.logging_config import configure_logging
 
+
+logger = logging.getLogger("mittelstand_ai.importer")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -178,13 +183,14 @@ def import_data():
             )
             missing_payment_dates = cur.fetchone()[0]
 
-    print("PostgreSQL import completed successfully!")
-    print(f"New supplier invoices inserted: {supplier_inserted}")
-    print(f"New customer invoices inserted: {customer_inserted}")
-    print(f"Total supplier invoices: {supplier_count}")
-    print(f"Total customer invoices: {customer_count}")
-    print(f"Missing payment dates: {missing_payment_dates}")
+    logger.info("PostgreSQL import completed successfully.")
+    logger.info("New supplier invoices inserted: %s", supplier_inserted)
+    logger.info("New customer invoices inserted: %s", customer_inserted)
+    logger.info("Total supplier invoices: %s", supplier_count)
+    logger.info("Total customer invoices: %s", customer_count)
+    logger.info("Missing payment dates: %s", missing_payment_dates)
 
 
 if __name__ == "__main__":
+    configure_logging()
     import_data()

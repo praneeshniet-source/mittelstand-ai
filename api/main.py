@@ -1,9 +1,13 @@
 
-from uuid import uuid4
+import logging
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
+
+from config.settings import settings
+from config.logging_config import configure_logging
 
 from analytics.financial_assistant import (
     ask_financial_assistant,
@@ -15,10 +19,13 @@ from analytics.rag_assistant import ask_document_question
 from analytics.rag_pipeline import ingest_pdf
 
 
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+# Configure application-wide structured logging.
+configure_logging()
+logger = logging.getLogger("mittelstand_ai.api")
+
 
 app = FastAPI(
-    title="Mittelstand AI API",
+    title=f"{settings.app_name} API",
     description="AI-powered financial operations and invoice analytics API.",
     version="1.0.0",
 )
@@ -74,14 +81,18 @@ def is_financial_question(question: str) -> bool:
 
 @app.get("/health")
 def health_check():
+    logger.info("Health check requested.")
+
     return {
         "status": "healthy",
-        "application": "Mittelstand AI",
+        "application": settings.app_name,
     }
 
 
 @app.get("/analytics/overview")
 def analytics_overview():
+    logger.info("Supplier portfolio analytics requested.")
+
     try:
         metrics = get_portfolio_metrics()
 
@@ -91,16 +102,25 @@ def analytics_overview():
                 detail="No supplier invoice data available.",
             )
 
+        logger.info("Supplier portfolio analytics retrieved successfully.")
         return metrics
 
     except HTTPException:
         raise
-    except (FileNotFoundError, ValueError) as error:
-        raise HTTPException(status_code=500, detail=str(error))
+
+    except Exception:
+        logger.exception("Failed to retrieve supplier portfolio analytics.")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve supplier analytics.",
+        )
 
 
 @app.get("/analytics/customers")
 def customer_analytics():
+    logger.info("Customer analytics requested.")
+
     try:
         metrics = get_customer_metrics()
 
@@ -110,36 +130,62 @@ def customer_analytics():
                 detail="No customer invoice data available.",
             )
 
+        logger.info("Customer analytics retrieved successfully.")
         return metrics
 
     except HTTPException:
         raise
-    except (FileNotFoundError, ValueError) as error:
-        raise HTTPException(status_code=500, detail=str(error))
+
+    except Exception:
+        logger.exception("Failed to retrieve customer analytics.")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve customer analytics.",
+        )
 
 
 @app.post("/ai/ask")
 def ask_ai(request: QuestionRequest):
+    logger.info("AI question received.")
+
     try:
         if is_financial_question(request.question):
+            logger.info("Routing question to financial assistant.")
+
             answer = ask_financial_assistant(request.question)
+
+            logger.info("Financial assistant completed successfully.")
 
             return {
                 "answer": answer,
                 "sources": [],
             }
 
-        return ask_document_question(
+        logger.info("Routing question to document RAG assistant.")
+
+        result = ask_document_question(
             request.question,
             top_k=request.top_k,
         )
 
-    except (FileNotFoundError, ValueError) as error:
-        raise HTTPException(status_code=500, detail=str(error))
+        logger.info("Document question processed successfully.")
+
+        return result
+
+    except Exception:
+        logger.exception("AI question processing failed.")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to process the AI question.",
+        )
 
 
 @app.get("/analytics/suppliers/{supplier}")
 def supplier_analytics(supplier: str):
+    logger.info("Supplier analytics requested.")
+
     try:
         metrics = get_supplier_metrics(supplier)
 
@@ -149,29 +195,40 @@ def supplier_analytics(supplier: str):
                 detail=f"No invoice data found for supplier: {supplier}",
             )
 
+        logger.info("Supplier analytics retrieved successfully.")
         return metrics
 
     except HTTPException:
         raise
-    except (FileNotFoundError, ValueError) as error:
-        raise HTTPException(status_code=500, detail=str(error))
+
+    except Exception:
+        logger.exception("Failed to retrieve supplier analytics.")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve supplier analytics.",
+        )
 
 
 @app.post("/documents/upload")
 async def upload_document(file: UploadFile = File(...)):
     if not file.filename:
+        logger.warning("Document upload rejected: missing filename.")
+
         raise HTTPException(
             status_code=400,
             detail="No filename provided.",
         )
 
     if not file.filename.lower().endswith(".pdf"):
+        logger.warning("Document upload rejected: unsupported file type.")
+
         raise HTTPException(
             status_code=400,
             detail="Only PDF files are supported.",
         )
 
-    upload_dir = Path("data/uploads")
+    upload_dir = Path(settings.upload_directory)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate a unique filename to prevent overwriting existing files.
@@ -180,21 +237,29 @@ async def upload_document(file: UploadFile = File(...)):
     file_path = upload_dir / unique_name
 
     try:
-        content = await file.read(MAX_UPLOAD_SIZE + 1)
+        content = await file.read(settings.max_upload_size + 1)
 
-        if len(content) > MAX_UPLOAD_SIZE:
+        if len(content) > settings.max_upload_size:
+            limit_mb = settings.max_upload_size / (1024 * 1024)
+
+            logger.warning("Document upload rejected: file exceeds size limit.")
+
             raise HTTPException(
                 status_code=413,
-                detail="File size exceeds the 10 MB upload limit.",
+                detail=f"File size exceeds the {limit_mb:g} MB upload limit.",
             )
 
         if not content:
+            logger.warning("Document upload rejected: empty file.")
+
             raise HTTPException(
                 status_code=400,
                 detail="Uploaded file is empty.",
             )
 
         if not content.startswith(b"%PDF-"):
+            logger.warning("Document upload rejected: invalid PDF signature.")
+
             raise HTTPException(
                 status_code=400,
                 detail="Invalid PDF file.",
@@ -202,7 +267,14 @@ async def upload_document(file: UploadFile = File(...)):
 
         file_path.write_bytes(content)
 
+        logger.info("PDF saved. Starting document ingestion.")
+
         result = ingest_pdf(file_path)
+
+        logger.info(
+            "Document uploaded and indexed successfully: %s",
+            unique_name,
+        )
 
         return {
             "message": "Document uploaded and indexed successfully.",
@@ -212,12 +284,26 @@ async def upload_document(file: UploadFile = File(...)):
     except HTTPException:
         raise
 
-    except (FileNotFoundError, ValueError) as error:
-        # Remove the saved file if ingestion fails.
+    except ValueError:
+        # Remove the saved file if document validation or ingestion fails.
         file_path.unlink(missing_ok=True)
+
+        logger.exception("Document ingestion failed due to invalid content.")
+
         raise HTTPException(
             status_code=400,
-            detail=str(error),
+            detail="The uploaded document could not be processed.",
+        )
+
+    except Exception:
+        # Remove incomplete uploads after unexpected failures.
+        file_path.unlink(missing_ok=True)
+
+        logger.exception("Unexpected document upload failure.")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Document upload failed due to an internal error.",
         )
 
     finally:

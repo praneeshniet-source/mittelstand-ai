@@ -5,6 +5,7 @@ import re
 
 import chromadb
 
+from config.settings import settings
 from analytics.pdf_extractor import extract_text_from_pdf
 from analytics.document_chunker import chunk_text
 from analytics.embedding_client import get_embedding
@@ -12,9 +13,13 @@ from analytics.embedding_client import get_embedding
 
 # Persistent vector database location
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-VECTOR_STORE_PATH = PROJECT_ROOT / "data" / "vector_store"
+
+VECTOR_STORE_PATH = (
+    PROJECT_ROOT / settings.vector_store_directory
+)
 
 VECTOR_STORE_PATH.mkdir(parents=True, exist_ok=True)
+
 
 # Initialize ChromaDB
 client = chromadb.PersistentClient(
@@ -22,7 +27,7 @@ client = chromadb.PersistentClient(
 )
 
 collection = client.get_or_create_collection(
-    name="mittelstand_documents",
+    name=settings.vector_collection_name,
     metadata={"hnsw:space": "cosine"}
 )
 
@@ -138,14 +143,12 @@ def search_documents(question, top_k=3):
         })
 
     # Step 2: Extract the requested supplier name
-    # Prioritise "from" to avoid matching an earlier "of"
     supplier_reference = re.search(
         r"\bfrom\s+(.+?)[?.!]*$",
         question,
         re.IGNORECASE
     )
 
-    # Fallback for questions using "for" or "of"
     if not supplier_reference:
         supplier_reference = re.search(
             r"\b(?:for|of)\s+(?:the\s+)?(?:supplier\s+)?(.+?)[?.!]*$",

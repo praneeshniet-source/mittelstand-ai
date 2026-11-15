@@ -1,8 +1,14 @@
+import logging
 
 import requests
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5:1.5b"
+from config.settings import settings
+
+
+logger = logging.getLogger("mittelstand_ai.ollama")
+
+OLLAMA_URL = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
+MODEL_NAME = settings.ollama_model
 
 
 def ask_ollama(prompt):
@@ -12,16 +18,14 @@ def ask_ollama(prompt):
         "model": MODEL_NAME,
         "prompt": prompt,
         "stream": False,
-        "options": {
-            "temperature": 0.2
-        }
+        "options": {"temperature": 0.2},
     }
 
     try:
         response = requests.post(
             OLLAMA_URL,
             json=payload,
-            timeout=180
+            timeout=settings.ollama_timeout,
         )
 
         response.raise_for_status()
@@ -30,4 +34,5 @@ def ask_ollama(prompt):
         return result.get("response", "").strip()
 
     except requests.exceptions.RequestException as error:
+        logger.exception("Ollama request failed.")
         return f"Ollama connection error: {error}"
