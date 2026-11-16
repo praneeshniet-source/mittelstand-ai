@@ -1,5 +1,13 @@
 
-import { AlertCircle, CalendarDays, CheckCircle2, FileText, MapPin, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  FileText,
+  MapPin,
+  X,
+} from 'lucide-react'
 
 export type InvoiceDetail = {
   invoice_id: string
@@ -26,6 +34,10 @@ export default function InvoiceDetailPanel({
   currency,
   formatDate,
 }: InvoiceDetailPanelProps) {
+  const panelRef = useRef<HTMLElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const onCloseRef = useRef(onClose)
+
   const isPaid = invoice.status.toLowerCase() === 'paid'
 
   const statusLabel = invoice.is_overdue
@@ -34,24 +46,98 @@ export default function InvoiceDetailPanel({
       ? 'Paid'
       : 'Unpaid'
 
+  // Keep the latest close callback without restarting the modal lifecycle.
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  // Manage keyboard accessibility, focus and background scrolling.
+  useEffect(() => {
+    const previouslyFocusedElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+
+    const previousBodyOverflow = document.body.style.overflow
+
+    document.body.style.overflow = 'hidden'
+
+    closeButtonRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+
+      const panel = panelRef.current
+
+      if (!panel) return
+
+      const focusableElements = panel.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+
+      if (!firstElement || !lastElement) {
+        event.preventDefault()
+        panel.focus()
+        return
+      }
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (
+        !event.shiftKey &&
+        document.activeElement === lastElement
+      ) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+
+      document.body.style.overflow = previousBodyOverflow
+
+      if (previouslyFocusedElement?.isConnected) {
+        previouslyFocusedElement.focus()
+      }
+    }
+  }, [])
+
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-slate-950/40"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) {
+          onClose()
+        }
       }}
     >
       <aside
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="invoice-detail-title"
-        className="flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl"
+        tabIndex={-1}
+        className="flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl outline-none"
       >
         <header className="flex items-center justify-between border-b border-slate-200 p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
               <FileText size={20} />
             </div>
+
             <div>
               <h2
                 id="invoice-detail-title"
@@ -59,6 +145,7 @@ export default function InvoiceDetailPanel({
               >
                 Invoice details
               </h2>
+
               <p className="text-xs text-slate-400">
                 {invoice.invoice_id}
               </p>
@@ -66,10 +153,11 @@ export default function InvoiceDetailPanel({
           </div>
 
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             aria-label="Close invoice details"
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <X size={19} />
           </button>
@@ -80,9 +168,11 @@ export default function InvoiceDetailPanel({
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Supplier
             </p>
+
             <h3 className="mt-2 text-xl font-semibold text-slate-900">
               {invoice.supplier}
             </h3>
+
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
               {invoice.country && (
                 <span className="flex items-center gap-1">
@@ -90,6 +180,7 @@ export default function InvoiceDetailPanel({
                   {invoice.country}
                 </span>
               )}
+
               {invoice.category && (
                 <span>{invoice.category}</span>
               )}
@@ -97,7 +188,10 @@ export default function InvoiceDetailPanel({
           </section>
 
           <section className="rounded-xl border border-slate-200 p-4">
-            <p className="text-xs text-slate-500">Invoice amount</p>
+            <p className="text-xs text-slate-500">
+              Invoice amount
+            </p>
+
             <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
               {currency(invoice.amount_eur)}
             </p>
@@ -118,6 +212,7 @@ export default function InvoiceDetailPanel({
               ) : (
                 <AlertCircle size={14} />
               )}
+
               {statusLabel}
             </span>
           </section>
@@ -131,8 +226,12 @@ export default function InvoiceDetailPanel({
               <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
                 <CalendarDays size={17} />
               </div>
+
               <div>
-                <p className="text-xs text-slate-400">Invoice date</p>
+                <p className="text-xs text-slate-400">
+                  Invoice date
+                </p>
+
                 <p className="mt-1 text-sm font-medium text-slate-800">
                   {formatDate(invoice.invoice_date)}
                 </p>
@@ -149,8 +248,12 @@ export default function InvoiceDetailPanel({
               >
                 <CalendarDays size={17} />
               </div>
+
               <div>
-                <p className="text-xs text-slate-400">Payment due date</p>
+                <p className="text-xs text-slate-400">
+                  Payment due date
+                </p>
+
                 <p
                   className={`mt-1 text-sm font-medium ${
                     invoice.is_overdue
@@ -170,6 +273,7 @@ export default function InvoiceDetailPanel({
                 <AlertCircle size={17} />
                 Payment overdue
               </div>
+
               <p className="mt-2 text-xs leading-5 text-red-600">
                 This invoice was unpaid on the reporting date. Follow up with
                 the supplier or review the payment status.
@@ -182,7 +286,7 @@ export default function InvoiceDetailPanel({
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+            className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
             Close details
           </button>
