@@ -36,6 +36,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import InvoiceDetailPanel from './components/InvoiceDetailPanel'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
@@ -103,6 +104,7 @@ function App() {
   const [apiConnected, setApiConnected] = useState(false)
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [invoiceLoading, setInvoiceLoading] = useState(true)
   const [invoiceError, setInvoiceError] = useState('')
   const [search, setSearch] = useState('')
@@ -119,7 +121,7 @@ function App() {
     total_pages: 0,
   })
 
-    const [question, setQuestion] = useState('')
+  const [question, setQuestion] = useState('')
 
   const [messages, setMessages] = useState<AssistantMessage[]>([
     {
@@ -800,8 +802,16 @@ function App() {
                         key={invoice.invoice_id}
                         className="border-b border-slate-100 text-xs transition hover:bg-slate-50"
                       >
-                        <td className="px-4 py-4 font-semibold text-blue-700">
-                          {invoice.invoice_id}
+                        <td className="px-4 py-4">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInvoice(invoice)}
+                            aria-haspopup="dialog"
+                            aria-label={`View invoice ${invoice.invoice_id} details`}
+                            className="font-semibold text-blue-700 underline-offset-2 transition hover:text-blue-900 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          >
+                            {invoice.invoice_id}
+                          </button>
                         </td>
                         <td className="px-4 py-4">
                           <p className="font-medium text-slate-800">
@@ -1010,6 +1020,15 @@ function App() {
           </footer>
         </div>
       </main>
+
+      {selectedInvoice && (
+        <InvoiceDetailPanel
+          invoice={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
+          currency={currency}
+          formatDate={formatDate}
+        />
+      )}
     </div>
   )
 }
