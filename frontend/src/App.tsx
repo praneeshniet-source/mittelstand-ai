@@ -332,11 +332,13 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-800">
+      {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[250px] flex-col bg-[#111c32] text-white lg:flex">
         <div className="flex h-[76px] items-center gap-3 border-b border-white/10 px-6">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500">
             <BrainCircuit size={21} />
           </div>
+
           <div>
             <h1 className="text-[15px] font-semibold tracking-wide">
               Mittelstand AI
@@ -351,11 +353,16 @@ function App() {
           <p className="mb-3 px-3 text-[10px] font-semibold tracking-[2px] text-slate-500">
             WORKSPACE
           </p>
-          <nav className="space-y-1">
-            <a className="flex items-center gap-3 rounded-lg bg-blue-500/15 px-3 py-3 text-sm font-medium text-blue-300">
+
+          <nav className="space-y-1" aria-label="Main workspace navigation">
+            <a
+              href="#overview"
+              className="flex items-center gap-3 rounded-lg bg-blue-500/15 px-3 py-3 text-sm font-medium text-blue-300"
+            >
               <LayoutDashboard size={18} />
               Overview
             </a>
+
             <a
               href="#invoice-explorer"
               className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white"
@@ -363,10 +370,12 @@ function App() {
               <FileText size={18} />
               Invoices
             </a>
+
             <a className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white">
               <Building2 size={18} />
               Suppliers
             </a>
+
             <a
               href="#ai-assistant"
               className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white"
@@ -382,27 +391,32 @@ function App() {
             <Settings size={18} />
             Settings
           </a>
+
           <div className="mt-4 flex items-center gap-3 rounded-xl bg-white/5 p-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-600 text-xs font-semibold">
               PA
             </div>
+
             <div className="min-w-0">
               <p className="text-xs font-medium">Finance workspace</p>
               <p className="text-[10px] text-slate-400">Administrator</p>
             </div>
+
             <ChevronDown className="ml-auto text-slate-400" size={15} />
           </div>
         </div>
       </aside>
 
-      <main className="min-h-screen lg:ml-[250px]">
-        <header className="flex h-[76px] items-center justify-between border-b border-slate-200 bg-white px-5 sm:px-8">
+      <main className="min-h-screen min-w-0 lg:ml-[250px]">
+        {/* Top header */}
+        <header className="flex min-h-[76px] flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-8">
           <div>
             <p className="text-xs text-slate-400">Workspace / Overview</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-900">
               Financial overview
             </h2>
           </div>
+
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs">
               <span
@@ -410,11 +424,17 @@ function App() {
                   apiConnected ? 'bg-emerald-500' : 'bg-amber-500'
                 }`}
               />
+
               <span className="text-slate-600">
-                {apiConnected ? 'Backend connected' : 'Backend unavailable'}
+                <span className="sm:hidden">API</span>
+                <span className="hidden sm:inline">
+                  {apiConnected ? 'Backend connected' : 'Backend unavailable'}
+                </span>
               </span>
             </div>
+
             <button
+              type="button"
               aria-label="Help"
               className="hidden rounded-full border border-slate-200 p-2 text-slate-500 sm:block"
             >
@@ -423,25 +443,60 @@ function App() {
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1500px] space-y-6 p-5 sm:p-8">
-          <section className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        {/* Mobile navigation */}
+        <nav
+          aria-label="Mobile workspace navigation"
+          className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden"
+        >
+          <a
+            href="#overview"
+            className="min-h-10 shrink-0 rounded-lg bg-blue-50 px-3 py-2.5 text-xs font-medium text-blue-700"
+          >
+            Overview
+          </a>
+
+          <a
+            href="#invoice-explorer"
+            className="min-h-10 shrink-0 rounded-lg px-3 py-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+          >
+            Invoices
+          </a>
+
+          <a
+            href="#ai-assistant"
+            className="min-h-10 shrink-0 rounded-lg px-3 py-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+          >
+            POKO
+          </a>
+        </nav>
+
+        <div className="mx-auto max-w-[1500px] min-w-0 space-y-5 p-4 sm:space-y-6 sm:p-6 lg:p-8">
+          {/* Dashboard heading */}
+          <section
+            id="overview"
+            className="flex scroll-mt-6 flex-col justify-between gap-3 sm:flex-row sm:items-end"
+          >
             <div>
               <p className="text-sm text-slate-500">
                 Financial intelligence at a glance
               </p>
+
               <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
                 Dashboard
               </h2>
             </div>
+
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <Activity size={15} />
               Live data from your financial backend
             </div>
           </section>
 
+          {/* Dashboard error */}
           {apiError && (
             <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <AlertCircle className="mt-0.5 shrink-0" size={18} />
+
               <div>
                 <p className="font-semibold">Financial data unavailable</p>
                 <p className="mt-1">{apiError}</p>
@@ -453,23 +508,27 @@ function App() {
             </div>
           )}
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* KPI cards */}
+          <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
             {metrics.map((metric) => {
               const Icon = metric.icon
+
               return (
                 <article
                   key={metric.label}
-                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                  className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-medium text-slate-500">
                       {metric.label}
                     </p>
-                    <div className="rounded-lg bg-slate-100 p-2 text-slate-600">
+
+                    <div className="shrink-0 rounded-lg bg-slate-100 p-2 text-slate-600">
                       <Icon size={17} />
                     </div>
                   </div>
-                  <div className="mt-4 min-h-9 text-[25px] font-semibold tracking-tight text-slate-900">
+
+                  <div className="mt-3 min-h-9 break-words text-xl font-semibold tracking-tight text-slate-900 sm:mt-4 sm:text-[25px]">
                     {loading ? (
                       <LoaderCircle
                         className="animate-spin text-slate-400"
@@ -479,7 +538,8 @@ function App() {
                       metric.value
                     )}
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-400">
+
+                  <p className="mt-2 text-[11px] leading-4 text-slate-400">
                     {metric.description}
                   </p>
                 </article>
@@ -487,22 +547,26 @@ function App() {
             })}
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
-            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <div className="flex items-center justify-between">
-                <div>
+          {/* Portfolio charts */}
+          <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <h3 className="font-semibold text-slate-900">
                     Invoice portfolio
                   </h3>
+
                   <p className="mt-1 text-xs text-slate-400">
                     Financial distribution by payment status
                   </p>
                 </div>
-                <span className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-slate-600">
+
+                <span className="shrink-0 rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-slate-600">
                   EUR
                 </span>
               </div>
-              <div className="mt-6 h-[260px]">
+
+              <div className="mt-5 h-[230px] min-w-0 sm:mt-6 sm:h-[260px]">
                 {loading ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">
                     <LoaderCircle className="mr-2 animate-spin" size={18} />
@@ -519,6 +583,7 @@ function App() {
                         vertical={false}
                         stroke="#edf0f5"
                       />
+
                       <XAxis
                         dataKey="name"
                         axisLine={false}
@@ -526,6 +591,7 @@ function App() {
                         tick={{ fill: '#94a3b8', fontSize: 11 }}
                         dy={10}
                       />
+
                       <YAxis
                         axisLine={false}
                         tickLine={false}
@@ -535,6 +601,7 @@ function App() {
                         }
                         width={75}
                       />
+
                       <Tooltip
                         formatter={(value) => [
                           currency(Number(value)),
@@ -546,6 +613,7 @@ function App() {
                           fontSize: 12,
                         }}
                       />
+
                       <Bar
                         dataKey="amount"
                         fill="#4778d9"
@@ -562,14 +630,16 @@ function App() {
               </div>
             </article>
 
-            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
               <h3 className="font-semibold text-slate-900">
                 Payment composition
               </h3>
+
               <p className="mt-1 text-xs text-slate-400">
                 Paid versus outstanding invoice value
               </p>
-              <div className="relative mt-3 h-[205px]">
+
+              <div className="relative mt-3 h-[190px] min-w-0 sm:h-[205px]">
                 {loading ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">
                     <LoaderCircle className="mr-2 animate-spin" size={18} />
@@ -591,11 +661,13 @@ function App() {
                           <Cell fill="#4778d9" />
                           <Cell fill="#f0a34a" />
                         </Pie>
+
                         <Tooltip
                           formatter={(value) => currency(Number(value))}
                         />
                       </PieChart>
                     </ResponsiveContainer>
+
                     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                       <p className="text-[10px] text-slate-400">Invoices</p>
                       <p className="text-2xl font-semibold text-slate-900">
@@ -609,22 +681,26 @@ function App() {
                   </div>
                 )}
               </div>
+
               <div className="mt-2 space-y-3">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex items-center gap-2 text-slate-500">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#4778d9]" />
                     Paid
                   </span>
-                  <strong className="text-slate-800">
+
+                  <strong className="text-right text-slate-800">
                     {portfolio ? currency(portfolio.paid) : '—'}
                   </strong>
                 </div>
-                <div className="flex items-center justify-between text-xs">
+
+                <div className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex items-center gap-2 text-slate-500">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#f0a34a]" />
                     Outstanding
                   </span>
-                  <strong className="text-slate-800">
+
+                  <strong className="text-right text-slate-800">
                     {portfolio ? currency(portfolio.unpaid) : '—'}
                   </strong>
                 </div>
@@ -632,31 +708,36 @@ function App() {
             </article>
           </section>
 
+          {/* Invoice explorer */}
           <section
             id="invoice-explorer"
-            className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+            className="scroll-mt-6 min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
           >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
                   Invoice Explorer
                 </h3>
+
                 <p className="mt-1 text-xs text-slate-400">
                   Search, filter and inspect supplier invoices
                 </p>
               </div>
+
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <FileText size={15} />
-                {pagination.total_records} matching invoices
+                <span>{pagination.total_records} matching invoices</span>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(220px,1.5fr)_minmax(130px,0.7fr)_minmax(160px,0.8fr)_auto]">
-              <div className="relative">
+            {/* Invoice filters */}
+            <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_minmax(130px,0.7fr)_minmax(160px,0.8fr)_auto]">
+              <div className="relative min-w-0">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                   size={16}
                 />
+
                 <input
                   value={search}
                   onChange={(event) => {
@@ -665,10 +746,12 @@ function App() {
                   }}
                   placeholder="Search invoice ID or supplier..."
                   aria-label="Search invoices"
-                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  className="min-h-11 w-full min-w-0 rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
+
                 {search && (
                   <button
+                    type="button"
                     onClick={() => {
                       setSearch('')
                       setPage(1)
@@ -688,7 +771,7 @@ function App() {
                   setPage(1)
                 }}
                 aria-label="Filter by payment status"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                className="min-h-11 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400"
               >
                 <option value="all">All statuses</option>
                 <option value="Paid">Paid</option>
@@ -704,7 +787,7 @@ function App() {
                   setPage(1)
                 }}
                 aria-label="Sort invoices"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                className="min-h-11 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400"
               >
                 <option value="due_date:asc">Due date: earliest first</option>
                 <option value="due_date:desc">Due date: latest first</option>
@@ -715,16 +798,18 @@ function App() {
               </select>
 
               <button
+                type="button"
                 onClick={resetFilters}
-                className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50 xl:w-auto"
               >
                 <X size={15} />
                 Reset
               </button>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+            {/* Overdue filter */}
+            <div className="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs text-slate-600">
                 <input
                   type="checkbox"
                   checked={overdueOnly}
@@ -736,6 +821,7 @@ function App() {
                 />
                 Show overdue invoices only
               </label>
+
               <p className="text-[11px] text-slate-400">
                 Reporting date: 27 Oct 2026
               </p>
@@ -748,7 +834,13 @@ function App() {
               </div>
             )}
 
-            <div className="mt-5 overflow-x-auto">
+            {/* Scrollable invoice table */}
+            <div
+              className="mt-5 overflow-x-auto overscroll-x-contain rounded-lg"
+              role="region"
+              aria-label="Invoice results table. Scroll horizontally to see all columns."
+              tabIndex={0}
+            >
               <table className="w-full min-w-[780px] border-collapse text-left">
                 <thead>
                   <tr className="border-y border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -760,6 +852,7 @@ function App() {
                     <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {invoiceLoading ? (
                     <tr>
@@ -787,9 +880,11 @@ function App() {
                       <td colSpan={6} className="px-4 py-12 text-center">
                         <div className="flex flex-col items-center gap-2 text-slate-400">
                           <Search size={22} />
+
                           <p className="text-sm font-medium text-slate-600">
                             No invoices found
                           </p>
+
                           <p className="text-xs">
                             Try changing your search or filters.
                           </p>
@@ -813,10 +908,12 @@ function App() {
                             {invoice.invoice_id}
                           </button>
                         </td>
+
                         <td className="px-4 py-4">
                           <p className="font-medium text-slate-800">
                             {invoice.supplier}
                           </p>
+
                           <p className="mt-1 text-[10px] text-slate-400">
                             {invoice.country || '—'}
                             {invoice.category
@@ -824,9 +921,11 @@ function App() {
                               : ''}
                           </p>
                         </td>
+
                         <td className="px-4 py-4 text-slate-500">
                           {formatDate(invoice.invoice_date)}
                         </td>
+
                         <td className="px-4 py-4">
                           <span
                             className={
@@ -838,9 +937,11 @@ function App() {
                             {formatDate(invoice.due_date)}
                           </span>
                         </td>
+
                         <td className="px-4 py-4 text-right font-semibold tabular-nums text-slate-800">
                           {currency(invoice.amount_eur)}
                         </td>
+
                         <td className="px-4 py-4">
                           {invoice.is_overdue ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-700">
@@ -866,6 +967,7 @@ function App() {
               </table>
             </div>
 
+            {/* Pagination */}
             <div className="mt-4 flex flex-col justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
               <p className="text-xs text-slate-500">
                 {pagination.total_records === 0
@@ -875,20 +977,25 @@ function App() {
                       pagination.total_records,
                     )} of ${pagination.total_records} invoices`}
               </p>
-              <div className="flex items-center gap-2">
+
+              <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
                 <button
+                  type="button"
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={page <= 1 || invoiceLoading}
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex min-h-10 items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeft size={14} />
                   Previous
                 </button>
-                <span className="px-2 text-xs tabular-nums text-slate-500">
+
+                <span className="px-1 text-xs tabular-nums text-slate-500 sm:px-2">
                   Page {pagination.total_pages === 0 ? 0 : page} of{' '}
                   {pagination.total_pages}
                 </span>
+
                 <button
+                  type="button"
                   onClick={() =>
                     setPage((current) =>
                       Math.min(pagination.total_pages, current + 1),
@@ -897,7 +1004,7 @@ function App() {
                   disabled={
                     page >= pagination.total_pages || invoiceLoading
                   }
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex min-h-10 items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Next
                   <ChevronRight size={14} />
@@ -906,75 +1013,89 @@ function App() {
             </div>
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
-            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <div className="flex items-center justify-between">
-                <div>
+          {/* Payment risk and POKO */}
+          <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <h3 className="font-semibold text-slate-900">
                     Payment risk overview
                   </h3>
+
                   <p className="mt-1 text-xs text-slate-400">
                     Current overdue and not-yet-due exposure
                   </p>
                 </div>
-                <ShieldCheck className="text-slate-400" size={19} />
+
+                <ShieldCheck className="shrink-0 text-slate-400" size={19} />
               </div>
+
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-red-50 p-4">
+                <div className="min-w-0 rounded-xl bg-red-50 p-3 sm:p-4">
                   <div className="flex items-center gap-2 text-xs font-medium text-red-600">
                     <ArrowDownRight size={15} />
                     Overdue invoices
                   </div>
+
                   <p className="mt-3 text-xl font-semibold text-red-700">
                     {portfolio ? portfolio.overdue_invoice_count : '—'}
                   </p>
+
                   <p className="mt-1 text-xs text-red-500">
                     {portfolio ? currency(portfolio.overdue) : '—'}
                   </p>
                 </div>
-                <div className="rounded-xl bg-emerald-50 p-4">
+
+                <div className="min-w-0 rounded-xl bg-emerald-50 p-3 sm:p-4">
                   <div className="flex items-center gap-2 text-xs font-medium text-emerald-700">
                     <CheckCircle2 size={15} />
                     Not yet due
                   </div>
+
                   <p className="mt-3 text-xl font-semibold text-emerald-800">
                     {portfolio ? portfolio.not_due_invoice_count : '—'}
                   </p>
+
                   <p className="mt-1 text-xs text-emerald-600">
                     {portfolio ? currency(portfolio.not_due) : '—'}
                   </p>
                 </div>
               </div>
-              <div className="mt-5 flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-500">
-                <Activity size={15} />
+
+              <div className="mt-5 flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-500">
+                <Activity className="mt-0.5 shrink-0" size={15} />
                 Risk indicators are calculated by the financial backend.
               </div>
             </article>
 
+            {/* POKO assistant */}
             <article
               id="ai-assistant"
-              className="flex min-h-[300px] scroll-mt-6 flex-col rounded-xl border border-slate-200 bg-white shadow-sm"
+              className="flex min-h-[360px] min-w-0 scroll-mt-6 flex-col rounded-xl border border-slate-200 bg-white shadow-sm sm:min-h-[400px]"
             >
-              <div className="flex items-center gap-3 border-b border-slate-100 p-5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <div className="flex items-center gap-3 border-b border-slate-100 p-4 sm:p-5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                   <BrainCircuit size={20} />
                 </div>
-                <div>
+
+                <div className="min-w-0">
                   <h3 className="font-semibold text-slate-900">
                     POKO
                   </h3>
+
                   <p className="text-[10px] text-slate-400">
                     Your Financial Operations Companion
                   </p>
                 </div>
-                <Sparkles className="ml-auto text-blue-500" size={17} />
+
+                <Sparkles className="ml-auto shrink-0 text-blue-500" size={17} />
               </div>
 
-              <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              <div className="max-h-[420px] min-h-[180px] flex-1 space-y-3 overflow-y-auto p-4">
                 {messages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
-                    className={`max-w-[95%] rounded-xl p-3 text-xs leading-5 ${
+                    className={`max-w-[95%] break-words rounded-xl p-3 text-xs leading-5 ${
                       message.role === 'user'
                         ? 'ml-auto bg-[#172b4d] text-white'
                         : 'bg-slate-100 text-slate-700'
@@ -983,6 +1104,7 @@ function App() {
                     {message.content}
                   </div>
                 ))}
+
                 {asking && (
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <LoaderCircle className="animate-spin" size={14} />
@@ -999,14 +1121,16 @@ function App() {
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
                   placeholder="Ask about your invoices..."
+                  aria-label="Ask POKO a question"
                   maxLength={1000}
-                  className="min-w-0 flex-1 rounded-lg bg-slate-100 px-3 py-3 text-xs outline-none transition focus:ring-2 focus:ring-blue-200"
+                  className="min-h-11 min-w-0 flex-1 rounded-lg bg-slate-100 px-3 py-3 text-xs outline-none transition focus:ring-2 focus:ring-blue-200"
                 />
+
                 <button
                   type="submit"
                   disabled={!question.trim() || asking}
                   aria-label="Send question"
-                  className="rounded-lg bg-blue-600 p-3 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg bg-blue-600 p-3 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Send size={15} />
                 </button>
@@ -1014,6 +1138,7 @@ function App() {
             </article>
           </section>
 
+          {/* Footer */}
           <footer className="flex flex-col justify-between gap-2 border-t border-slate-200 py-4 text-[10px] text-slate-400 sm:flex-row">
             <span>Mittelstand AI · Financial Intelligence Platform</span>
             <span>React · TypeScript · FastAPI · PostgreSQL</span>
@@ -1021,6 +1146,7 @@ function App() {
         </div>
       </main>
 
+      {/* Invoice detail modal */}
       {selectedInvoice && (
         <InvoiceDetailPanel
           invoice={selectedInvoice}
