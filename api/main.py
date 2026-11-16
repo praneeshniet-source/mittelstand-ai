@@ -3,18 +3,27 @@ import logging
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    UploadFile,
+    File,
+    Query,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from config.settings import settings
 from config.logging_config import configure_logging
 
+from analytics.database import fetch_dataframe
+
 from analytics.financial_assistant import (
     ask_financial_assistant,
     get_portfolio_metrics,
     get_customer_metrics,
     get_supplier_metrics,
+    DEFAULT_REPORTING_DATE,
 )
 
 from analytics.rag_assistant import ask_document_question
@@ -213,6 +222,215 @@ def supplier_analytics(supplier: str):
         raise HTTPException(
             status_code=500,
             detail="Unable to retrieve supplier analytics.",
+        )
+
+
+# ============================================================
+# INVOICE MANAGEMENT
+# ============================================================
+
+@app.get("/invoices")
+def list_invoices(
+    search: str | None = Query(
+        default=None,
+        max_length=100,
+        description="Search by invoice ID or supplier name",
+    ),
+    status: str | None = Query(
+        default=None,
+        description="Filter by Paid or Unpaid status",
+    ),
+    overdue_only: bool = Query(
+        default=False,
+        description="Show only overdue unpaid invoices",
+    ),
+    sort_by: str = Query(
+        default="due_date",
+        description="Sort by due_date, invoice_date or amount_eur",
+    ),
+    sort_order: str = Query(
+        default="asc",
+        description="Sort direction: asc or desc",
+    ),
+    page: int = Query(
+        default=1,
+        ge=1,
+        description="Page number",
+    ),
+    page_size: int = Query(
+        default=10,
+        ge=1,
+        le=100,
+        description="Number of invoices per page",
+    ),
+):
+    """Retrieve searchable, filterable and paginated supplier invoices."""
+
+    logger.info("Invoice list requested.")
+
+    allowed_sort_columns = {
+        "due_date": "due_date",
+        "invoice_date": "invoice_date",
+        "amount_eur": "amount_eur",
+    }
+
+    sort_column = allowed_sort_columns.get(sort_by.casefold())
+
+    if sort_column is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid sort_by value. Use due_date, "
+                "invoice_date or amount_eur."
+            ),
+        )
+
+    direction = sort_order.casefold()
+
+    if direction not in ("asc", "desc"):
+        raise HTTPException(
+            status_code=400,
+            detail="sort_order must be asc or desc.",
+        )
+
+    normalized_status = None
+
+    if status is not None:
+        normalized_status = status.strip().casefold()
+
+        if normalized_status not in ("paid", "unpaid"):
+            raise HTTPException(
+                status_code=400,
+                detail="status must be Paid or Unpaid.",
+            )
+
+    conditions = []
+    params = []
+
+    if search and search.strip():
+        search_term = f"%{search.strip()}%"
+
+        conditions.append(
+            """
+            (
+                invoice_id ILIKE %s
+                OR supplier ILIKE %s
+            )
+            """
+        )
+
+        params.extend([search_term, search_term])
+
+    if normalized_status:
+        conditions.append(
+            "LOWER(TRIM(status)) = %s"
+        )
+        params.append(normalized_status)
+
+    if overdue_only:
+        conditions.append(
+            """
+            LOWER(TRIM(status)) = 'unpaid'
+            AND due_date < %s
+            """
+        )
+        params.append(DEFAULT_REPORTING_DATE.date())
+
+    where_clause = (
+        "WHERE " + " AND ".join(conditions)
+        if conditions
+        else ""
+    )
+
+    try:
+        count_query = f"""
+            SELECT COUNT(*) AS total
+            FROM invoices
+            {where_clause}
+        """
+
+        count_result = fetch_dataframe(
+            count_query,
+            tuple(params),
+        )
+
+        total_records = int(count_result.iloc[0]["total"])
+
+        offset = (page - 1) * page_size
+
+        invoice_query = f"""
+            SELECT
+                invoice_id,
+                supplier,
+                country,
+                category,
+                invoice_date,
+                due_date,
+                amount_eur,
+                status,
+                CASE
+                    WHEN LOWER(TRIM(status)) = 'unpaid'
+                     AND due_date < %s
+                    THEN TRUE
+                    ELSE FALSE
+                END AS is_overdue
+            FROM invoices
+            {where_clause}
+            ORDER BY {sort_column} {direction.upper()}, invoice_id ASC
+            LIMIT %s OFFSET %s
+        """
+
+        query_params = [
+            DEFAULT_REPORTING_DATE.date(),
+            *params,
+            page_size,
+            offset,
+        ]
+
+        data = fetch_dataframe(
+            invoice_query,
+            tuple(query_params),
+        )
+
+        total_pages = (
+            (total_records + page_size - 1) // page_size
+        )
+
+        logger.info(
+            "Retrieved %s invoice records on page %s.",
+            len(data),
+            page,
+        )
+
+        return {
+            "invoices": data.to_dict(orient="records"),
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_records": total_records,
+                "total_pages": total_pages,
+            },
+            "filters": {
+                "search": search,
+                "status": normalized_status,
+                "overdue_only": overdue_only,
+                "sort_by": sort_by,
+                "sort_order": direction,
+            },
+            "reporting_date": (
+                DEFAULT_REPORTING_DATE.date().isoformat()
+            ),
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        logger.exception("Failed to retrieve invoice records.")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve invoice records.",
         )
 
 

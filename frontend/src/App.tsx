@@ -5,21 +5,24 @@ import {
   AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
-  Bot,
   BrainCircuit,
   Building2,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   FileText,
   LayoutDashboard,
   LoaderCircle,
   MessageSquare,
+  Search,
   Send,
   Settings,
   ShieldCheck,
   Sparkles,
   Wallet,
+  X,
 } from 'lucide-react'
 import {
   Bar,
@@ -48,10 +51,35 @@ type Portfolio = {
   not_due_invoice_count: number
 }
 
+type Invoice = {
+  invoice_id: string
+  supplier: string
+  country: string | null
+  category: string | null
+  invoice_date: string
+  due_date: string
+  amount_eur: number
+  status: string
+  is_overdue: boolean
+}
+
+type InvoiceResponse = {
+  invoices: Invoice[]
+  pagination: {
+    page: number
+    page_size: number
+    total_records: number
+    total_pages: number
+  }
+  reporting_date: string
+}
+
 type AssistantMessage = {
   role: 'user' | 'assistant'
   content: string
 }
+
+type SortField = 'due_date' | 'invoice_date' | 'amount_eur'
 
 const currency = (value: number) =>
   new Intl.NumberFormat('en-GB', {
@@ -60,20 +88,46 @@ const currency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00Z`))
+
 function App() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState('')
   const [apiConnected, setApiConnected] = useState(false)
 
-  const [question, setQuestion] = useState('')
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [invoiceLoading, setInvoiceLoading] = useState(true)
+  const [invoiceError, setInvoiceError] = useState('')
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('all')
+  const [overdueOnly, setOverdueOnly] = useState(false)
+  const [sortBy, setSortBy] = useState<SortField>('due_date')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(5)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    page_size: 5,
+    total_records: 0,
+    total_pages: 0,
+  })
+
+    const [question, setQuestion] = useState('')
+
   const [messages, setMessages] = useState<AssistantMessage[]>([
     {
       role: 'assistant',
-      content:
-        'Hello! I am your financial operations assistant. Ask me about overdue invoices, outstanding payments, or supplier exposure.',
+      content: `Guten Morgen! I'm POKO. 👋 I'm your intelligent financial operations companion. Ask me about overdue invoices, outstanding payments, supplier risks, or business workflows.`,
     },
   ])
+
   const [asking, setAsking] = useState(false)
 
   useEffect(() => {
@@ -83,7 +137,6 @@ function App() {
         setApiError('')
 
         const healthResponse = await fetch(`${API_BASE_URL}/health`)
-
         if (!healthResponse.ok) {
           throw new Error('Backend health check failed.')
         }
@@ -91,7 +144,6 @@ function App() {
         setApiConnected(true)
 
         const response = await fetch(`${API_BASE_URL}/analytics/overview`)
-
         if (!response.ok) {
           throw new Error(
             response.status === 404
@@ -117,11 +169,65 @@ function App() {
     loadDashboard()
   }, [])
 
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadInvoices = async () => {
+      try {
+        setInvoiceLoading(true)
+        setInvoiceError('')
+
+        const params = new URLSearchParams({
+          page: String(page),
+          page_size: String(pageSize),
+          sort_by: sortBy,
+          sort_order: sortOrder,
+        })
+
+        if (search.trim()) params.set('search', search.trim())
+        if (status !== 'all') params.set('status', status)
+        if (overdueOnly) params.set('overdue_only', 'true')
+
+        const response = await fetch(
+          `${API_BASE_URL}/invoices?${params.toString()}`,
+          { signal: controller.signal },
+        )
+
+        if (!response.ok) {
+          throw new Error(
+            `Could not load invoices. Server returned ${response.status}.`,
+          )
+        }
+
+        const data: InvoiceResponse = await response.json()
+
+        setInvoices(data.invoices)
+        setPagination(data.pagination)
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return
+
+        setInvoiceError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load invoices.',
+        )
+        setInvoices([])
+      } finally {
+        if (!controller.signal.aborted) {
+          setInvoiceLoading(false)
+        }
+      }
+    }
+
+    loadInvoices()
+
+    return () => controller.abort()
+  }, [search, status, overdueOnly, sortBy, sortOrder, page, pageSize])
+
   const askAssistant = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     const trimmedQuestion = question.trim()
-
     if (!trimmedQuestion || asking) return
 
     setMessages((previous) => [
@@ -168,6 +274,15 @@ function App() {
     } finally {
       setAsking(false)
     }
+  }
+
+  const resetFilters = () => {
+    setSearch('')
+    setStatus('all')
+    setOverdueOnly(false)
+    setSortBy('due_date')
+    setSortOrder('asc')
+    setPage(1)
   }
 
   const chartData = portfolio
@@ -239,7 +354,10 @@ function App() {
               <LayoutDashboard size={18} />
               Overview
             </a>
-            <a className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white">
+            <a
+              href="#invoice-explorer"
+              className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white"
+            >
               <FileText size={18} />
               Invoices
             </a>
@@ -247,7 +365,10 @@ function App() {
               <Building2 size={18} />
               Suppliers
             </a>
-            <a className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white">
+            <a
+              href="#ai-assistant"
+              className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white"
+            >
               <MessageSquare size={18} />
               AI Assistant
             </a>
@@ -333,7 +454,6 @@ function App() {
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {metrics.map((metric) => {
               const Icon = metric.icon
-
               return (
                 <article
                   key={metric.label}
@@ -380,7 +500,6 @@ function App() {
                   EUR
                 </span>
               </div>
-
               <div className="mt-6 h-[260px]">
                 {loading ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">
@@ -448,7 +567,6 @@ function App() {
               <p className="mt-1 text-xs text-slate-400">
                 Paid versus outstanding invoice value
               </p>
-
               <div className="relative mt-3 h-[205px]">
                 {loading ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">
@@ -489,7 +607,6 @@ function App() {
                   </div>
                 )}
               </div>
-
               <div className="mt-2 space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="flex items-center gap-2 text-slate-500">
@@ -513,6 +630,272 @@ function App() {
             </article>
           </section>
 
+          <section
+            id="invoice-explorer"
+            className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+          >
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Invoice Explorer
+                </h3>
+                <p className="mt-1 text-xs text-slate-400">
+                  Search, filter and inspect supplier invoices
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <FileText size={15} />
+                {pagination.total_records} matching invoices
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(220px,1.5fr)_minmax(130px,0.7fr)_minmax(160px,0.8fr)_auto]">
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={16}
+                />
+                <input
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value)
+                    setPage(1)
+                  }}
+                  placeholder="Search invoice ID or supplier..."
+                  aria-label="Search invoices"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+                {search && (
+                  <button
+                    onClick={() => {
+                      setSearch('')
+                      setPage(1)
+                    }}
+                    aria-label="Clear search"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+
+              <select
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value)
+                  setPage(1)
+                }}
+                aria-label="Filter by payment status"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+              >
+                <option value="all">All statuses</option>
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
+              </select>
+
+              <select
+                value={`${sortBy}:${sortOrder}`}
+                onChange={(event) => {
+                  const [field, order] = event.target.value.split(':')
+                  setSortBy(field as SortField)
+                  setSortOrder(order as 'asc' | 'desc')
+                  setPage(1)
+                }}
+                aria-label="Sort invoices"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+              >
+                <option value="due_date:asc">Due date: earliest first</option>
+                <option value="due_date:desc">Due date: latest first</option>
+                <option value="invoice_date:desc">Invoice date: newest</option>
+                <option value="invoice_date:asc">Invoice date: oldest</option>
+                <option value="amount_eur:desc">Amount: highest first</option>
+                <option value="amount_eur:asc">Amount: lowest first</option>
+              </select>
+
+              <button
+                onClick={resetFilters}
+                className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
+              >
+                <X size={15} />
+                Reset
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={overdueOnly}
+                  onChange={(event) => {
+                    setOverdueOnly(event.target.checked)
+                    setPage(1)
+                  }}
+                  className="h-4 w-4 rounded border-slate-300 accent-blue-600"
+                />
+                Show overdue invoices only
+              </label>
+              <p className="text-[11px] text-slate-400">
+                Reporting date: 27 Oct 2026
+              </p>
+            </div>
+
+            {invoiceError && (
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle size={17} className="mt-0.5 shrink-0" />
+                <div>{invoiceError}</div>
+              </div>
+            )}
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full min-w-[780px] border-collapse text-left">
+                <thead>
+                  <tr className="border-y border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <th className="px-4 py-3">Invoice</th>
+                    <th className="px-4 py-3">Supplier</th>
+                    <th className="px-4 py-3">Invoice date</th>
+                    <th className="px-4 py-3">Due date</th>
+                    <th className="px-4 py-3 text-right">Amount</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoiceLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center">
+                        <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
+                          <LoaderCircle
+                            className="animate-spin"
+                            size={18}
+                          />
+                          Loading invoices...
+                        </div>
+                      </td>
+                    </tr>
+                  ) : invoiceError ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-12 text-center text-sm text-slate-400"
+                      >
+                        Invoice data could not be loaded.
+                      </td>
+                    </tr>
+                  ) : invoices.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2 text-slate-400">
+                          <Search size={22} />
+                          <p className="text-sm font-medium text-slate-600">
+                            No invoices found
+                          </p>
+                          <p className="text-xs">
+                            Try changing your search or filters.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    invoices.map((invoice) => (
+                      <tr
+                        key={invoice.invoice_id}
+                        className="border-b border-slate-100 text-xs transition hover:bg-slate-50"
+                      >
+                        <td className="px-4 py-4 font-semibold text-blue-700">
+                          {invoice.invoice_id}
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="font-medium text-slate-800">
+                            {invoice.supplier}
+                          </p>
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            {invoice.country || '—'}
+                            {invoice.category
+                              ? ` · ${invoice.category}`
+                              : ''}
+                          </p>
+                        </td>
+                        <td className="px-4 py-4 text-slate-500">
+                          {formatDate(invoice.invoice_date)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span
+                            className={
+                              invoice.is_overdue
+                                ? 'font-medium text-red-600'
+                                : 'text-slate-500'
+                            }
+                          >
+                            {formatDate(invoice.due_date)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-right font-semibold tabular-nums text-slate-800">
+                          {currency(invoice.amount_eur)}
+                        </td>
+                        <td className="px-4 py-4">
+                          {invoice.is_overdue ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-700">
+                              <AlertCircle size={12} />
+                              Overdue
+                            </span>
+                          ) : invoice.status.toLowerCase() === 'paid' ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700">
+                              <CheckCircle2 size={12} />
+                              Paid
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700">
+                              <AlertCircle size={12} />
+                              Unpaid
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 flex flex-col justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
+              <p className="text-xs text-slate-500">
+                {pagination.total_records === 0
+                  ? 'No records'
+                  : `Showing ${(page - 1) * pageSize + 1}–${Math.min(
+                      page * pageSize,
+                      pagination.total_records,
+                    )} of ${pagination.total_records} invoices`}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={page <= 1 || invoiceLoading}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} />
+                  Previous
+                </button>
+                <span className="px-2 text-xs tabular-nums text-slate-500">
+                  Page {pagination.total_pages === 0 ? 0 : page} of{' '}
+                  {pagination.total_pages}
+                </span>
+                <button
+                  onClick={() =>
+                    setPage((current) =>
+                      Math.min(pagination.total_pages, current + 1),
+                    )
+                  }
+                  disabled={
+                    page >= pagination.total_pages || invoiceLoading
+                  }
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          </section>
+
           <section className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
             <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex items-center justify-between">
@@ -526,7 +909,6 @@ function App() {
                 </div>
                 <ShieldCheck className="text-slate-400" size={19} />
               </div>
-
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-red-50 p-4">
                   <div className="flex items-center gap-2 text-xs font-medium text-red-600">
@@ -534,9 +916,7 @@ function App() {
                     Overdue invoices
                   </div>
                   <p className="mt-3 text-xl font-semibold text-red-700">
-                    {portfolio
-                      ? portfolio.overdue_invoice_count
-                      : '—'}
+                    {portfolio ? portfolio.overdue_invoice_count : '—'}
                   </p>
                   <p className="mt-1 text-xs text-red-500">
                     {portfolio ? currency(portfolio.overdue) : '—'}
@@ -555,24 +935,26 @@ function App() {
                   </p>
                 </div>
               </div>
-
               <div className="mt-5 flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-500">
                 <Activity size={15} />
                 Risk indicators are calculated by the financial backend.
               </div>
             </article>
 
-            <article className="flex min-h-[300px] flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+            <article
+              id="ai-assistant"
+              className="flex min-h-[300px] scroll-mt-6 flex-col rounded-xl border border-slate-200 bg-white shadow-sm"
+            >
               <div className="flex items-center gap-3 border-b border-slate-100 p-5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                  <Bot size={20} />
+                  <BrainCircuit size={20} />
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900">
-                    AI Finance Assistant
+                    POKO
                   </h3>
                   <p className="text-[10px] text-slate-400">
-                    Ask questions about your finances
+                    Your Financial Operations Companion
                   </p>
                 </div>
                 <Sparkles className="ml-auto text-blue-500" size={17} />

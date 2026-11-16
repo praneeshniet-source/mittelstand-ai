@@ -3,9 +3,9 @@
 
 **AI-Powered Financial Operations Assistant for Small and Medium-Sized Enterprises (SMEs)**
 
-Mittelstand AI is an educational portfolio project exploring how AI and data analytics can support financial operations in small and medium-sized enterprises.
+Mittelstand AI is an educational portfolio project exploring how AI, data analytics and business process automation can support financial operations in small and medium-sized enterprises.
 
-The prototype combines structured financial analytics, invoice processing, document retrieval, and locally hosted language models to help users investigate financial information and understand business documents.
+The prototype combines structured financial analytics, invoice processing, document retrieval, a React dashboard and a conversational financial assistant called POKO.
 
 ## Project Objectives
 
@@ -18,6 +18,7 @@ The prototype combines structured financial analytics, invoice processing, docum
 - Retrieve relevant information from business documents using Retrieval-Augmented Generation (RAG).
 - Provide evidence-based answers to financial and document-related questions.
 - Expose financial and AI capabilities through a REST API.
+- Provide an interactive interface for financial operations.
 
 ## Key Features
 
@@ -44,12 +45,17 @@ The prototype combines structured financial analytics, invoice processing, docum
 - Identify potentially unusual invoice records.
 - Flag suspicious patterns for further investigation.
 
-### 4. AI Financial Assistant
+### 4. POKO — Financial Operations Companion
+
+POKO is the conversational financial assistant integrated into the React dashboard.
 
 - Answer financial questions using structured invoice data.
-- Perform deterministic financial calculations using Python and SQL.
-- Use a locally hosted language model for natural-language explanations.
-- Provide financial context to reduce unsupported AI-generated claims.
+- Provide information about overdue invoices and outstanding payments.
+- Identify supplier exposure and invoice portfolio metrics.
+- Perform deterministic financial calculations through the backend.
+- Display answers through a conversational interface.
+
+POKO currently provides an interface to the existing financial assistant. It is not yet a separate autonomous agent or workflow execution engine.
 
 ### 5. Document Intelligence (RAG)
 
@@ -62,7 +68,26 @@ The prototype combines structured financial analytics, invoice processing, docum
 - Return source filenames with document answers.
 - Validate evidence for supported invoice fields.
 
-### 6. REST API
+### 6. Invoice Explorer
+
+- Display supplier invoice records.
+- Search by invoice identifier or supplier name.
+- Filter invoices by Paid and Unpaid status.
+- Filter overdue invoices.
+- Sort by invoice date, due date and amount.
+- Paginate invoice records.
+- Display invoice status and overdue indicators.
+
+### 7. Interactive Financial Dashboard
+
+- Financial portfolio KPI cards.
+- Supplier invoice portfolio visualisation.
+- Payment composition charts.
+- Overdue and not-yet-due risk overview.
+- Integrated POKO financial assistant.
+- Live data retrieval from the FastAPI backend.
+
+### 8. REST API
 
 The FastAPI backend exposes endpoints for:
 
@@ -70,6 +95,7 @@ The FastAPI backend exposes endpoints for:
 - Financial portfolio analytics.
 - Customer analytics.
 - Supplier analytics.
+- Invoice search, filtering, sorting and pagination.
 - Financial and document-related questions.
 - PDF document uploads and ingestion.
 
@@ -79,9 +105,12 @@ API documentation is available through FastAPI's interactive documentation inter
 
 | Area | Technologies |
 |---|---|
-| Programming | Python 3.12 |
+| Programming | Python 3.12, TypeScript |
 | Backend API | FastAPI, Uvicorn |
-| Dashboard | Streamlit |
+| Frontend | React 19, Vite |
+| Styling | Tailwind CSS 4 |
+| Charts | Recharts |
+| Icons | Lucide React |
 | Data analysis | Pandas |
 | Visualisation | Matplotlib, Altair |
 | Relational database | PostgreSQL |
@@ -94,113 +123,66 @@ API documentation is available through FastAPI's interactive documentation inter
 | OCR | Tesseract, Pytesseract |
 | Configuration | Pydantic Settings |
 | Logging | Python logging with JSON-formatted output |
-| API communication | Requests |
+| API communication | Fetch API |
 
 ## Architecture
 
-### High-Level Architecture
+Mittelstand AI uses a modular frontend-backend architecture.
 
 ```text
-                 Users
-                   |
-          +--------+--------+
-          |                 |
-          v                 v
-   Streamlit Dashboard   REST API
-                         (FastAPI)
-                             |
-                             v
-                    Analytics and AI
-                       Services
-                             |
-                 +-----------+-----------+
-                 |                       |
-                 v                       v
-             PostgreSQL             Document RAG
-                 |                       |
-                 v                       v
-          Financial Analytics       PDF Extraction
-                 |                       |
-                 v                       v
-          Financial Insights        Text Chunking
-                                         |
-                                         v
-                                  Nomic Embeddings
-                                         |
-                                         v
-                                     ChromaDB
-                                         |
-                                         v
-                                   RAG Retrieval
-                                         |
-                                         v
-                                  Ollama / LLM
-```
-
-### Document Intelligence Flow
-
-```text
-Business PDF Documents
-         |
-         v
-   PDF Extraction
-         |
-         v
-    OCR if needed
-         |
-         v
-    Text Chunking
-         |
-         v
-   Embedding Generation
-         |
-         v
-      ChromaDB
-         |
-         v
-   Document Retrieval
-         |
-         v
- Evidence Validation
-         |
-         v
-   Ollama Language Model
-         |
-         v
-  Answer with Sources
-```
-
-### Financial Analytics Flow
-
-```text
-        Invoice Data
-             |
-             v
-         PostgreSQL
-             |
-             v
-      Python / Pandas
-             |
-      +------+------+
-      |      |      |
-      v      v      v
-   Supplier Customer Cash Flow
-   Analysis Analysis Analysis
-      |      |      |
-      +------+------+
-             |
-             v
-       Financial Assistant
-             |
-             v
-        REST API / UI
+                         USERS
+                           |
+              +------------+------------+
+              |                         |
+              v                         v
+        REACT FRONTEND              STREAMLIT
+              |                     DASHBOARD
+              |                         |
+              +------------+------------+
+                           |
+                           v
+                        FASTAPI
+                           |
+              +------------+------------+
+              |                         |
+              v                         v
+      FINANCIAL ANALYTICS        DOCUMENT INTELLIGENCE
+              |                         |
+              v                         v
+          POSTGRESQL               PDF EXTRACTION
+              |                         |
+              v                         v
+       VERIFIED METRICS          TEXT CHUNKING
+              |                         |
+              |                         v
+              |                  NOMIC EMBEDDINGS
+              |                         |
+              |                         v
+              |                      CHROMADB
+              |                         |
+              |                         v
+              |                   RAG RETRIEVAL
+              |                         |
+              |                         v
+              |                 EVIDENCE VALIDATION
+              |                         |
+              |                         v
+              |                    OLLAMA / QWEN
+              |                         |
+              +------------+------------+
+                           |
+                           v
+                      API RESPONSE
+                           |
+                           v
+                      REACT / POKO
 ```
 
 ## Project Structure
 
 ```text
 mittelstand-ai/
-|
+│
 ├── analytics/
 │   ├── create_database.py
 │   ├── database.py
@@ -247,6 +229,24 @@ mittelstand-ai/
 │   ├── day10_receivables_findings.md
 │   └── day11_net_cash_flow.md
 │
+├── frontend/
+│   ├── public/
+│   │   └── favicon.svg
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── index.css
+│   │   └── main.tsx
+│   ├── .gitignore
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── README.md
+│   ├── tsconfig.app.json
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
+│   └── vite.config.ts
+│
 ├── sql/
 │   └── 01_basic_analysis.sql
 │
@@ -266,6 +266,7 @@ mittelstand-ai/
 ### Prerequisites
 
 - Python 3.12
+- Node.js and npm
 - PostgreSQL
 - Ollama
 - Tesseract OCR
@@ -278,14 +279,14 @@ git clone https://github.com/praneeshniet-source/mittelstand-ai.git
 cd mittelstand-ai
 ```
 
-### 2. Create a virtual environment
+### 2. Create a Python virtual environment
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies
+### 3. Install Python dependencies
 
 ```bash
 python -m pip install --upgrade pip
@@ -300,7 +301,7 @@ cp .env.example .env
 
 Review `.env` and configure the PostgreSQL connection and other settings for your environment.
 
-The application expects the PostgreSQL database and required invoice tables to be available. The current database verification script checks for existing tables; it is not a complete database schema migration tool.
+The application expects the PostgreSQL database and required invoice tables to be available. The current database verification script is not a complete database schema migration tool.
 
 ### 5. Install Tesseract OCR
 
@@ -338,6 +339,8 @@ Ensure Ollama is running before using the AI and document intelligence features.
 
 ### 7. Start the FastAPI backend
 
+From the project root:
+
 ```bash
 .venv/bin/uvicorn api.main:app --reload
 ```
@@ -354,9 +357,29 @@ Interactive API documentation:
 http://127.0.0.1:8000/docs
 ```
 
-### 8. Start the Streamlit dashboard
+### 8. Install and start the React frontend
 
-Open another terminal, activate the virtual environment, and run:
+Open another terminal and navigate to the project root.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The Vite development server will display its local URL, normally:
+
+```text
+http://localhost:5173
+```
+
+The frontend communicates with the FastAPI backend. Configure `VITE_API_BASE_URL` if the backend uses a different address.
+
+### 9. Start the Streamlit dashboard
+
+The existing Streamlit dashboard remains available as a separate interface.
+
+From the project root:
 
 ```bash
 .venv/bin/streamlit run app.py
@@ -364,10 +387,24 @@ Open another terminal, activate the virtual environment, and run:
 
 ## Testing
 
-Run the automated tests:
+### Backend tests
+
+Run the automated Python tests:
 
 ```bash
 PYTHONPATH=. .venv/bin/python -m pytest -q
+```
+
+### Frontend linting
+
+```bash
+npm --prefix frontend run lint
+```
+
+### Frontend production build
+
+```bash
+npm --prefix frontend run build
 ```
 
 The repository also contains manually executable analysis and verification scripts. Not every script in the project is an automated pytest test.
@@ -397,9 +434,14 @@ The current prototype includes:
 - ChromaDB-based document retrieval.
 - Evidence validation for document answers.
 - FastAPI endpoints for analytics, AI questions and document uploads.
+- Searchable, filterable and paginated invoice API.
+- React and TypeScript financial dashboard.
+- Invoice Explorer interface.
+- POKO financial assistant interface.
 - Centralised application configuration and structured logging.
+- Frontend and backend integration.
 
-The project is still under active development. The Streamlit dashboard, API and RAG components should not be considered a fully integrated production financial platform.
+The project is still under active development. The React frontend, Streamlit dashboard, API and RAG components are a working prototype, not a fully integrated production financial platform.
 
 ## Known Limitations
 
@@ -409,16 +451,18 @@ The project is still under active development. The Streamlit dashboard, API and 
 - Document retrieval and answer quality depend on extracted text and embedding relevance.
 - Financial question routing currently uses keyword-based classification.
 - The database schema is not yet managed through a formal migration framework.
-- Authentication, role-based access control and production deployment are not yet implemented.
+- Authentication and role-based access control are not yet implemented.
+- Production deployment and multi-tenant data isolation are not yet implemented.
+- The frontend production JavaScript bundle exceeds Vite's default 500 kB warning threshold and requires code-splitting optimisation.
 
 ## Future Development Roadmap
 
 Planned development areas include:
 
-- React and TypeScript frontend.
 - Jira and Confluence enterprise integrations.
 - MCP-based enterprise tool integration.
-- Multi-provider AI architecture.
+- Multi-provider AI architecture supporting Ollama, OpenAI and Claude.
+- AI tool orchestration.
 - Workflow orchestration.
 - Human approval mechanisms.
 - Role-based access control.
@@ -426,6 +470,7 @@ Planned development areas include:
 - Automated financial operations workflows.
 - Docker-based deployment.
 - Improved testing and evaluation.
+- Frontend performance optimisation.
 
 ## Project Disclaimer
 
